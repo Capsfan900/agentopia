@@ -5,7 +5,7 @@
     <UseWPF>true</UseWPF>
     <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
-    <AssemblyName>AgentFoundry</AssemblyName>
+    <AssemblyName>Agentopia</AssemblyName>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <RuntimeFrameworkVersion>8.0.31</RuntimeFrameworkVersion>
     <RollForward>LatestPatch</RollForward>

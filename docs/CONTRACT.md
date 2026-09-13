@@ -1,11 +1,11 @@
-# Agent Foundry contract
+# Agentopia contract
 
-This document is the canonical stable contract for Agent Foundry's live payload, saved library objects,
+This document is the canonical stable contract for Agentopia's live payload, saved library objects,
 portable bundles, and trust boundaries. Historical plans and verification reports are not runtime contracts.
 
 ## Product boundaries
 
-Agent Foundry has four surfaces:
+Agentopia has four surfaces:
 
 - Operations (`/`) and Observatory (`/observatory`) are two projections of the same live payload.
 - Settings (`/settings`) selects a local telemetry source and stores ordinary configuration.
@@ -57,9 +57,25 @@ session: {
   prompt_context: prompt_context,
   working_on: working_on,
   work_breakdown: [observation, ...],
-  trace: trace
+  trace: trace,
+  saved_handoff: saved_handoff
 }
 ```
+
+`saved_handoff` is Agentopia's narrow projection of durable Library state for the exact
+`(adapter, source, session id)` identity. It is one of:
+
+```text
+{ state: "none" | "unavailable" }
+{ state: "saved", item_id, revision, captured_at, archived,
+  completion: {completed, source: "runtime" | "user" | "imported", trusted} }
+```
+
+`none` means the complete readable Library contains no match. `unavailable` means identity is
+missing or Library state could not be evaluated completely. Imported completion is always
+untrusted until a local decision creates a new revision. Prompts, traces and saved context are
+never copied into this projection. Library mutations advance the live-state signature so the
+existing event stream emits a fresh projection.
 
 Live statuses are `working`, `tool`, `thinking`, `approval`, `idle`, `completed`, `interrupted`, and `failed`.
 Tool observations may use `running`. Missing intent or provenance is labeled as a fallback; it is never
@@ -126,6 +142,22 @@ account: {
 The JSON adapter preserves a supplied account object. Absence means unavailable, not zero. Metrics are
 evidence and never a success verdict.
 
+## Windows Terminal context
+
+The opt-in Windows host keeps dashboard and Terminal WebViews on separate authenticated loopback
+origins. Dashboard WebMessage remains disabled. When the Terminal page is first opened, the native
+host opens one bounded subscription to the existing `/api/events` stream and projects at most eight
+host-owned panes; it adds no provider poller, model call or retry loop. An explicit refresh can fetch
+the current state or restart a failed subscription.
+
+A Codex resume pane can show current-session context only when adapter, source, working directory and
+session identity all match. A fork pane shows the source session and labels it as such. A new Codex
+session remains unavailable until a verified identity exists. Other shells remain unlinked. The
+projection exposes only working summary/source, approval, status, turn status, staleness, update time
+and the narrow saved-handoff state above. It never exposes prompt text, trace detail, raw commands or
+terminal contents. Updates replace context text nodes without recreating terminal instances. The
+subscription is cancelled before WebView and process-tree shutdown.
+
 ### Generic JSON input
 
 The JSON source requires a top-level `sessions` array. At minimum, each row should provide a stable `id`;
@@ -135,8 +167,8 @@ the state file. The adapter never discovers sessions or sends provider actions.
 
 ## Settings contract
 
-The default data directory is `%LOCALAPPDATA%\AgentFoundry` (with a platform-local fallback when
-`LOCALAPPDATA` is absent). `settings.json` is an ordinary bounded JSON file:
+The default data directory remains `%LOCALAPPDATA%\AgentFoundry` for compatibility with existing installs
+(with a platform-local fallback when `LOCALAPPDATA` is absent). `settings.json` is an ordinary bounded JSON file:
 
 ```text
 {
@@ -371,7 +403,7 @@ The baseline can be a pinned prior artifact, saved work, configuration revision,
 it is never fabricated. Promotion requires a valid bound structural report, a non-failed explicit verdict,
 `no_worse: true`, non-empty scoped evidence, a note, and `user_confirmed: true`. Mixed can promote only as an
 explicit scoped acceptance with its limitations visible. Green tests alone are insufficient. Users run
-project checks or benchmarks themselves and record the evidence; Agent Foundry does not run them.
+project checks or benchmarks themselves and record the evidence; Agentopia does not run them.
 
 Promotion writes an audit revision and changes only `approved_revision`. The current draft and approved
 candidate remain distinct. No project, provider, installed skill, global configuration, or running agent is
@@ -419,7 +451,7 @@ Valid imported objects are preserved for provenance, but each public item points
 is untrusted. Instructions, validation declarations, handoff steps, and commands remain data. The compatibility
 report preserves declarations and says destination compatibility was not evaluated.
 
-Library directories and bundles are ordinary files suitable for deliberate Git management. Agent Foundry
+Library directories and bundles are ordinary files suitable for deliberate Git management. Agentopia
 does not perform Git operations.
 
 ## HTTP and action boundary

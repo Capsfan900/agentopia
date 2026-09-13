@@ -16,6 +16,47 @@
     return JSON.stringify({ paneId: paneId, generation: generation });
   }
   function safeText(value) { return String(value == null ? '' : value); }
+  function boundedString(value, limit) { return typeof value === 'string' && value.length <= limit ? value : ''; }
+  function normalizeContextEntry(value) {
+    if (!value || !isUuid(value.paneId) || !['current', 'source', 'unlinked', 'unavailable'].includes(value.relation)) return null;
+    const handoff = value.handoff && ['saved', 'none', 'unavailable'].includes(value.handoff.state) ? value.handoff : { state: 'unavailable' };
+    return {
+      paneId: value.paneId, relation: value.relation,
+      sessionId: isUuid(value.sessionId) ? value.sessionId : '',
+      workingOn: boundedString(value.workingOn, 260), workingSource: boundedString(value.workingSource, 120),
+      status: boundedString(value.status, 40), turnStatus: boundedString(value.turnStatus, 80),
+      approvalPending: value.approvalPending === true, stale: value.stale === true,
+      updated: boundedString(value.updated, 80), handoff: handoff
+    };
+  }
+  function applySessionContext(panes, message, retained) {
+    if (!message || message.kind !== 'sessionContext' || !Array.isArray(message.panes) || message.panes.length > 8) return false;
+    if (retained) retained.clear();
+    let applied = false;
+    for (const value of message.panes) {
+      const context = normalizeContextEntry(value); if (!context) continue;
+      if (retained) retained.set(context.paneId, context);
+      const pane = panes.get(context.paneId); if (pane) pane.sessionContext = context;
+      applied = true;
+    }
+    return applied;
+  }
+  function contextText(context) {
+    if (!context || context.relation === 'unavailable') return 'Session context unavailable.';
+    if (context.relation === 'unlinked') return 'Shell — no agent session linked.';
+    const parts = [(context.relation === 'source' ? 'Source session — fork reference' : 'Working now') + ': ' + (context.workingOn || 'No current work summary emitted')];
+    if (context.approvalPending) parts.push('Approval required — review it in the harness');
+    if (context.status) parts.push((context.stale ? 'Last recorded state' : 'Recorded state') + ': ' + context.status);
+    const handoff = context.handoff || { state: 'unavailable' };
+    if (handoff.state === 'saved') {
+      let label = 'Saved handoff';
+      if (handoff.archived === true) label += ' · archived';
+      if (handoff.completion && handoff.completion.completed === true) label += handoff.completion.trusted === false ? ' · completion untrusted' : ' · completed';
+      parts.push(label);
+    } else parts.push(handoff.state === 'none' ? 'No saved handoff found' : 'Handoff status unavailable');
+    if (context.updated) parts.push('updated ' + context.updated);
+    return parts.join(' · ') + '.';
+  }
   function registerBlockedOscHandlers(parser) { [0, 1, 2, 52].forEach(code => parser.registerOscHandler(code, () => true)); }
   function moveIntoSplit(tabs, activeId, paneId, orientation) {
     const active = tabs.find(tab => tab.id === activeId);
@@ -40,10 +81,11 @@
     if (event === 'complete') return current.pending ? { state: { inflight: true, pending: false }, run: true } : { state: { inflight: false, pending: false }, run: false };
     throw new TypeError('unknown refresh event');
   }
+  function observeExit(pane) { if (pane.status === 'exited' && pane.terminal) pane.terminal.options.disableStdin = true; }
   function websocketUrl(location) { const url = new URL('/connect', location.href); url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'; return url.href; }
 
   function start(document, window) {
-    const state = { panes: new Map(), tabs: [], activeTab: null, maxPanes: 8, browserMode: !(window.chrome && window.chrome.webview), refresh: { inflight: false, pending: false } };
+    const state = { panes: new Map(), contexts: new Map(), tabs: [], activeTab: null, maxPanes: 8, browserMode: !(window.chrome && window.chrome.webview), refresh: { inflight: false, pending: false } };
     const elements = {
       tabs: document.getElementById('tabs'), panes: document.getElementById('panes'), notice: document.getElementById('notice'), service: document.getElementById('service-state'), launch: document.getElementById('launch'), refresh: document.getElementById('refresh'), splitPane: document.getElementById('split-pane'), splitHorizontal: document.getElementById('split-horizontal'), splitVertical: document.getElementById('split-vertical'), unsplit: document.getElementById('unsplit')
     };
@@ -74,7 +116,7 @@
         if (!payload || !Array.isArray(payload.panes) || !Number.isInteger(payload.maxPanes)) throw new Error('Pane list was malformed');
         const incoming = new Map(payload.panes.filter(pane => pane && isUuid(pane.id)).map(pane => [pane.id, pane]));
         for (const [id, pane] of state.panes) if (!incoming.has(id)) { disposePane(pane); state.panes.delete(id); }
-        for (const [id, pane] of incoming) { const local = Object.assign(state.panes.get(id) || {}, pane); if (local.status === 'exited') invalidateAttachment(local); state.panes.set(id, local); }
+        for (const [id, pane] of incoming) { const local = Object.assign(state.panes.get(id) || {}, pane); local.sessionContext = state.contexts.get(id) || local.sessionContext; observeExit(local); state.panes.set(id, local); }
         state.maxPanes = Math.min(8, Math.max(0, payload.maxPanes));
         const assigned = new Set();
         state.tabs = state.tabs.map(tab => Object.assign(tab, { paneIds: tab.paneIds.filter(id => state.panes.has(id) && !assigned.has(id) && !!assigned.add(id)) })).filter(tab => tab.paneIds.length);
@@ -129,6 +171,7 @@
       if (pane.ready && pane.socket && pane.socket.readyState === window.WebSocket.OPEN && (isInputFrame(message) || isResizeFrame(message))) pane.socket.send(JSON.stringify(message));
     }
     function updatePaneStatus(pane, value) { pane.connectionLabel = value; const label = document.getElementById('pane-state-' + pane.id); if (label) label.textContent = value; }
+    function updatePaneContext(pane) { if (pane.contextElement) pane.contextElement.textContent = contextText(pane.sessionContext); }
     function fitPane(pane) {
       if (!pane.fit || !pane.terminal || !pane.mount || !pane.ready || !pane.mount.clientWidth || !pane.mount.clientHeight) return;
       pane.fit.fit();
@@ -188,7 +231,8 @@
         const reconnect = document.createElement('button'); reconnect.type = 'button'; reconnect.textContent = 'Reconnect'; reconnect.addEventListener('click', () => { if (!pane.socket) attach(pane); });
         const restart = document.createElement('button'); restart.type = 'button'; restart.textContent = 'Restart'; restart.disabled = state.browserMode; restart.addEventListener('click', () => nativePost({ kind: 'restartPane', paneId: pane.id }));
         const close = document.createElement('button'); close.type = 'button'; close.textContent = 'Close'; close.addEventListener('click', async () => { if (!window.confirm('Stop and remove this terminal pane?')) return; invalidateAttachment(pane); try { const response = await window.fetch('/api/panes/' + encodeURIComponent(pane.id) + '/close', { method: 'POST', credentials: 'omit', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirmed: true }) }); if (!response.ok) throw new Error('Close request failed (' + response.status + ')'); await refreshPanes(); } catch (error) { updatePaneStatus(pane, 'Detached — reconnect manually'); notice(error.message, true); } });
-        head.append(meta, status, reconnect, restart, close); const mount = document.createElement('div'); mount.className = 'terminal'; card.append(head, mount); elements.panes.appendChild(card); makeTerminal(pane, mount);
+        const context = document.createElement('div'); context.className = 'session-context'; pane.contextElement = context; updatePaneContext(pane);
+        head.append(meta, status, reconnect, restart, close); const mount = document.createElement('div'); mount.className = 'terminal'; card.append(head, context, mount); elements.panes.appendChild(card); makeTerminal(pane, mount);
         if (pane.id === focusedPaneId) window.requestAnimationFrame(() => pane.terminal.focus());
       }
     }
@@ -197,9 +241,12 @@
     function split(orientation) { const id = elements.splitPane.value; if (!state.panes.has(id)) return; const result = moveIntoSplit(state.tabs, state.activeTab, id, orientation); if (!result) return; state.tabs = result.tabs; state.activeTab = result.activeId; render(); }
     function unsplit() { const result = unsplitTab(state.tabs, state.activeTab, uuid()); if (!result) return; state.tabs = result.tabs; state.activeTab = result.activeId; render(); }
     elements.launch.addEventListener('click', () => nativePost({ kind: 'chooseLaunch' }));
-    elements.refresh.addEventListener('click', refreshPanes); elements.splitHorizontal.addEventListener('click', () => split('horizontal')); elements.splitVertical.addEventListener('click', () => split('vertical')); elements.unsplit.addEventListener('click', unsplit);
-    if (!state.browserMode) window.chrome.webview.addEventListener('message', event => { if (event.data && event.data.kind === 'panesChanged') refreshPanes(); });
+    elements.refresh.addEventListener('click', () => { refreshPanes(); nativePost({ kind: 'refreshContext' }); }); elements.splitHorizontal.addEventListener('click', () => split('horizontal')); elements.splitVertical.addEventListener('click', () => split('vertical')); elements.unsplit.addEventListener('click', unsplit);
+    if (!state.browserMode) window.chrome.webview.addEventListener('message', event => {
+      if (event.data && event.data.kind === 'panesChanged') refreshPanes();
+      else if (applySessionContext(state.panes, event.data, state.contexts)) for (const pane of state.panes.values()) updatePaneContext(pane);
+    });
     refreshPanes();
   }
-  return { byteLength: byteLength, isInputFrame: isInputFrame, isResizeFrame: isResizeFrame, ticketBody: ticketBody, registerBlockedOscHandlers: registerBlockedOscHandlers, moveIntoSplit: moveIntoSplit, unsplitTab: unsplitTab, outboundError: outboundError, nextOutputBytes: nextOutputBytes, releaseOutputBytes: releaseOutputBytes, advanceRefresh: advanceRefresh, safeText: safeText, start: start };
+  return { byteLength: byteLength, isInputFrame: isInputFrame, isResizeFrame: isResizeFrame, ticketBody: ticketBody, registerBlockedOscHandlers: registerBlockedOscHandlers, moveIntoSplit: moveIntoSplit, unsplitTab: unsplitTab, outboundError: outboundError, nextOutputBytes: nextOutputBytes, releaseOutputBytes: releaseOutputBytes, advanceRefresh: advanceRefresh, observeExit: observeExit, safeText: safeText, applySessionContext: applySessionContext, contextText: contextText, start: start };
 });

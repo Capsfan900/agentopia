@@ -53,13 +53,18 @@ assert.match(run(`classificationDetails({...direct,classification:{...direct.cla
 assert(!run(`classificationDetails({...direct,classification:{...direct.classification,reason:'<script>'}}).includes('<script>')`));
 assert.match(run(`classificationDetails(direct)`),/Structural.*functional.*unverified/is);
 const manage=fs.readFileSync('manage.html','utf8'),foundrySource=fs.readFileSync('foundry.js','utf8');
+for(const file of ['index.html','observatory.html','manage.html','desktop/windows/terminal/index.html']) {
+  const source=fs.readFileSync(file,'utf8');
+  assert(source.includes('Agentopia'),file+' exposes the current product name');
+  assert(!source.includes('Agent Foundry'),file+' exposes the legacy product name');
+}
 for(const path of ['/', '/observatory', '/library', '/settings']) assert(manage.includes(`href="${path}"`));
 assert(manage.includes('id="session-actions"'));
 assert(manage.includes('href="/foundry.css"'));
 assert(!foundrySource.includes("createElement('style')"),'Shared CSS replaces runtime-injected dialog styles');
 assert(foundrySource.includes('Save Handoff'));
 assert(!/Save live work|Save work snapshot|Save snapshot/i.test(foundrySource));
-assert.match(foundrySource,/valid Agent Foundry ZIP/);
+assert.match(foundrySource,/valid Agentopia Package/);
 assert.match(foundrySource,/arbitrary component file/);
 for(const file of ['index.html','observatory.html','manage.html']) assert(fs.readFileSync(file,'utf8').includes('id="help"'),file+' exposes Help');
 for(const file of ['index.html','observatory.html','manage.html']) {
@@ -106,4 +111,4 @@ for(const value of ['hermes','openrouter','model-x','openai','&lt;recorded-plan&
 assert.match(run('statusMarkup'),/Sign-in status is not checked/);
 assert.match(run('providerStatusMarkup({sessions:[],account:{}})'),/Not reported/);
 assert(!run('providerStatusMarkup({sessions:[],account:{}})').includes('0 recorded tokens'),'Missing usage is not zero');
-console.log('Foundry UI: honest source drafts, isolated exact-version replacement, escaping, send capability and recorded provider status passed.');
+console.log('Agentopia UI: honest source drafts, isolated exact-version replacement, escaping, send capability and recorded provider status passed.');

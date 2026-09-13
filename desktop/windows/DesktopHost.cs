@@ -39,20 +39,144 @@ static class DesktopProgram
                 else if (args[i] == "--data-dir" && i + 1 < args.Length) data = Path.GetFullPath(args[++i]);
                 else throw new ArgumentException("Use --data-dir <folder> and optionally --enable-terminal (experimental).");
             using var instance = new Mutex(true, @"Local\AgentFoundry-" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(data.ToUpperInvariant()))), out bool created);
-            if (!created) throw new InvalidOperationException("Agent Foundry already owns this data folder. Use its existing window.");
+            if (!created) throw new InvalidOperationException("Agentopia already owns this data folder. Use its existing window.");
             var application = new Application();
             application.Run(new DesktopWindow(data, terminal));
             return 0;
         }
         catch (Exception error)
         {
-            if (!args.Contains("--terminal-worker")) MessageBox.Show(error.Message, "Agent Foundry could not start", MessageBoxButton.OK, MessageBoxImage.Error);
+            if (!args.Contains("--terminal-worker")) MessageBox.Show(error.Message, "Agentopia could not start", MessageBoxButton.OK, MessageBoxImage.Error);
             return 1;
         }
     }
     [DllImport("kernel32.dll")] static extern uint SetErrorMode(uint mode);
     [DllImport("kernel32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)]
     static extern bool SetDefaultDllDirectories(uint flags);
+}
+
+internal static class TerminalContextBridge
+{
+    const int MaxStateChars = 4 * 1024 * 1024;
+    static readonly HashSet<string> Statuses = ["working", "tool", "thinking", "approval", "idle", "completed", "interrupted", "failed"];
+
+    public static string? ExtractStateData(string line)
+    {
+        if (!line.StartsWith("data: ", StringComparison.Ordinal)) return null;
+        string value = line[6..];
+        if (value.Length > MaxStateChars) throw new InvalidDataException("Terminal context snapshot exceeds 4 MiB.");
+        return value;
+    }
+
+    public static string Project(string snapshotJson, IReadOnlyDictionary<string, TerminalLaunch> launches)
+    {
+        using var document = JsonDocument.Parse(snapshotJson, new JsonDocumentOptions { MaxDepth = 24 });
+        JsonElement root = document.RootElement;
+        string adapter = Text(root, "adapter", 40), source = Text(root, "source", 1024);
+        JsonElement[] sessions = root.ValueKind == JsonValueKind.Object && root.TryGetProperty("sessions", out JsonElement rows) && rows.ValueKind == JsonValueKind.Array
+            ? rows.EnumerateArray().Take(10000).ToArray() : [];
+        var panes = launches.Take(8).Select(pair => Context(pair.Key, pair.Value, adapter, source, sessions)).ToArray();
+        return JsonSerializer.Serialize(new { kind = "sessionContext", panes });
+    }
+
+    static object Context(string paneId, TerminalLaunch launch, string adapter, string source, JsonElement[] sessions)
+    {
+        if (launch.ProfileName != "Codex") return new { paneId, relation = "unlinked" };
+        string? id = launch.SessionId ?? launch.SourceSessionId;
+        string relation = launch.SessionId is not null ? "current" : launch.SourceSessionId is not null ? "source" : "unavailable";
+        if (id is null || adapter != "codex" || !launch.Environment.TryGetValue("CODEX_HOME", out string? enrolledSource) ||
+            !SamePath(source, enrolledSource)) return new { paneId, relation = "unavailable" };
+        JsonElement[] matches = sessions.Where(row => row.ValueKind == JsonValueKind.Object && Text(row, "id", 64) == id).Take(2).ToArray();
+        if (matches.Length != 1 || !SamePath(Text(matches[0], "cwd", 1024), launch.WorkingDirectory))
+            return new { paneId, relation = "unavailable" };
+        JsonElement session = matches[0];
+        string status = Text(session, "status", 40);
+        if (!Statuses.Contains(status)) status = "idle";
+        string workingOn = "", workingSource = "";
+        if (session.TryGetProperty("working_on", out JsonElement working) && working.ValueKind == JsonValueKind.Object)
+        {
+            workingOn = Text(working, "summary", 260); workingSource = Text(working, "source", 120);
+            if (Text(working, "status", 40) == "approval") status = "approval";
+        }
+        if (workingOn.Length == 0) workingOn = Text(session, "current_action", 260);
+        bool approval = Bool(session, "approval_pending") || status == "approval";
+        object handoff = Handoff(session);
+        return new { paneId, relation, sessionId = id, workingOn, workingSource, status,
+            turnStatus = Text(session, "turn_status", 80), approvalPending = approval, stale = Bool(session, "stale"),
+            updated = Text(session, "updated", 80), handoff };
+    }
+
+    static object Handoff(JsonElement session)
+    {
+        if (!session.TryGetProperty("saved_handoff", out JsonElement value) || value.ValueKind != JsonValueKind.Object)
+            return new { state = "unavailable" };
+        string state = Text(value, "state", 20);
+        if (state == "none") return new { state };
+        if (state != "saved") return new { state = "unavailable" };
+        object? completion = null;
+        if (value.TryGetProperty("completion", out JsonElement finished) && finished.ValueKind == JsonValueKind.Object)
+        {
+            string source = Text(finished, "source", 20);
+            completion = new { completed = Bool(finished, "completed"), source,
+                trusted = (source is "runtime" or "user") && Bool(finished, "trusted") };
+        }
+        return new { state, itemId = Text(value, "item_id", 200), revision = Hash(value, "revision"),
+            capturedAt = Text(value, "captured_at", 80), archived = Bool(value, "archived"), completion };
+    }
+
+    static string Text(JsonElement value, string name, int limit)
+    {
+        if (value.ValueKind != JsonValueKind.Object || !value.TryGetProperty(name, out JsonElement item) || item.ValueKind != JsonValueKind.String)
+            return "";
+        string text = item.GetString()?.Trim() ?? "";
+        return text.Length <= limit ? text : text[..limit];
+    }
+    static string Hash(JsonElement value, string name)
+    {
+        string result = Text(value, name, 64);
+        return result.Length == 64 && result.All(char.IsAsciiHexDigit) ? result.ToLowerInvariant() : "";
+    }
+    static bool Bool(JsonElement value, string name) => value.ValueKind == JsonValueKind.Object && value.TryGetProperty(name, out JsonElement item) && item.ValueKind == JsonValueKind.True;
+    static bool SamePath(string left, string right)
+    {
+        try { return left.Length > 0 && right.Length > 0 && string.Equals(Path.TrimEndingDirectorySeparator(Path.GetFullPath(left)), Path.TrimEndingDirectorySeparator(Path.GetFullPath(right)), StringComparison.OrdinalIgnoreCase); }
+        catch (Exception error) when (error is ArgumentException or NotSupportedException or PathTooLongException) { return false; }
+    }
+}
+
+internal sealed class BoundedLineReader(Stream stream, int maximumBytes)
+{
+    static readonly Encoding StrictUtf8 = new UTF8Encoding(false, true);
+    readonly byte[] buffer = new byte[4096];
+    int offset, count;
+
+    public async Task<string?> ReadLineAsync(CancellationToken cancellationToken)
+    {
+        using var line = new MemoryStream(Math.Min(maximumBytes, buffer.Length));
+        while (true)
+        {
+            if (offset == count)
+            {
+                count = await stream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
+                offset = 0;
+                if (count == 0)
+                {
+                    if (line.Length == 0) return null;
+                    throw new EndOfStreamException("SSE stream ended inside a line.");
+                }
+            }
+            int newline = Array.IndexOf(buffer, (byte)'\n', offset, count - offset);
+            int take = (newline < 0 ? count : newline) - offset;
+            if (line.Length + take > maximumBytes) throw new InvalidDataException("SSE line exceeds its byte limit.");
+            line.Write(buffer, offset, take);
+            offset += take;
+            if (newline < 0) continue;
+            offset++;
+            if (line.Length > 0 && line.GetBuffer()[line.Length - 1] == '\r') line.SetLength(line.Length - 1);
+            try { return StrictUtf8.GetString(line.GetBuffer(), 0, checked((int)line.Length)); }
+            catch (DecoderFallbackException error) { throw new InvalidDataException("SSE line is not valid UTF-8.", error); }
+        }
+    }
 }
 
 sealed class DesktopWindow : Window
@@ -73,17 +197,22 @@ sealed class DesktopWindow : Window
     readonly Dictionary<string, TerminalLaunch> launches = new();
     readonly string mainKey = Secret(), terminalKey = Secret();
     readonly HttpClient http = new(new HttpClientHandler { UseProxy = false, AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(5), MaxResponseContentBufferSize = 4 * 1024 * 1024 };
+    readonly CancellationTokenSource contextUpdates = new();
+    readonly object contextGate = new();
     VerifiedLaunch? bundle;
     OwnedProcess? service;
     TerminalServer? terminals;
     string mainOrigin = "";
+    string? lastStateJson, pendingContextPayload;
+    Task? contextTask;
+    bool contextDeliveryPending;
     bool quiescing, closed, choosing, closing, openingTerminal;
     Task? stopTask;
 
     public DesktopWindow(string directory, bool enableTerminal)
     {
         dataDirectory = directory; terminalEnabled = enableTerminal;
-        Title = "Agent Foundry"; Width = Math.Min(1500, SystemParameters.WorkArea.Width); Height = Math.Min(960, SystemParameters.WorkArea.Height);
+        Title = "Agentopia"; Width = Math.Min(1500, SystemParameters.WorkArea.Width); Height = Math.Min(960, SystemParameters.WorkArea.Height);
         MinWidth = 800; MinHeight = 600; WindowStartupLocation = WindowStartupLocation.CenterScreen;
         var root = new DockPanel();
         DockPanel.SetDock(status, Dock.Bottom); root.Children.Add(status);
@@ -91,7 +220,7 @@ sealed class DesktopWindow : Window
         root.Children.Add(panels); Content = root;
         Loaded += async (_, _) => await StartAsync();
         Closing += OnClosing;
-        Closed += (_, _) => { closed = true; http.Dispose(); lifetime.Dispose(); bundle?.Dispose(); };
+        Closed += (_, _) => { closed = true; contextUpdates.Dispose(); http.Dispose(); lifetime.Dispose(); bundle?.Dispose(); };
     }
 
     async Task StartAsync()
@@ -219,7 +348,7 @@ sealed class DesktopWindow : Window
         {
             e.Cancel = true;
             if (terminal || quiescing || !e.DownloadOperation.Uri.StartsWith("blob:" + origin + "/", StringComparison.Ordinal)) return;
-            var save = new Microsoft.Win32.SaveFileDialog { Title = "Save reviewed Foundry Package", FileName = "agent-foundry-package.zip", DefaultExt = ".zip", Filter = "Foundry Package (*.zip)|*.zip", OverwritePrompt = true };
+            var save = new Microsoft.Win32.SaveFileDialog { Title = "Save reviewed Agentopia Package", FileName = "agentopia-package.zip", DefaultExt = ".zip", Filter = "Agentopia Package (*.zip)|*.zip", OverwritePrompt = true };
             if (save.ShowDialog(this) == true) { e.ResultFilePath = save.FileName; e.Handled = true; e.Cancel = false; }
         };
         core.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All, CoreWebView2WebResourceRequestSourceKinds.All);
@@ -231,7 +360,8 @@ sealed class DesktopWindow : Window
             else if (!(!quiescing && (terminal ? uri == origin.Replace("http://", "ws://") + "/connect" : uri.StartsWith("blob:" + origin + "/", StringComparison.Ordinal))))
                 e.Response = environment.CreateWebResourceResponse(Stream.Null, 403, "Blocked", "Content-Type: text/plain\r\nCache-Control: no-store");
         };
-        core.ProcessFailed += (_, _) => { status.Visibility = Visibility.Visible; status.Text = "A page process stopped. Commands were not retried. Close and restart Foundry."; };
+        core.ProcessFailed += (_, _) => { status.Visibility = Visibility.Visible; status.Text = "A page process stopped. Commands were not retried. Close and restart Agentopia."; };
+        if (terminal) core.DOMContentLoaded += (_, _) => { StartContextReader(); _ = RefreshContextProjectionAsync(); };
         if (terminal || terminals is not null)
         {
             string ownedOrigin = JsonSerializer.Serialize(origin), destination = JsonSerializer.Serialize(terminal ? mainOrigin : terminals!.Origin);
@@ -253,6 +383,7 @@ sealed class DesktopWindow : Window
                 if (!message.RootElement.TryGetProperty("kind", out var kindValue) || kindValue.ValueKind != JsonValueKind.String) return;
                 var kind = kindValue.GetString();
                 if (kind == "chooseLaunch" && fields.SequenceEqual(["kind"])) await ChooseLaunch();
+                else if (kind == "refreshContext" && fields.SequenceEqual(["kind"])) { StartContextReader(); await RefreshContextProjectionAsync(); }
                 else if (kind == "restartPane" && fields.Length == 2 && fields.Distinct().Count() == 2 && fields.Contains("paneId"))
                 {
                     var id = TerminalBoundary.Id(message.RootElement.GetProperty("paneId").GetString()!);
@@ -295,6 +426,72 @@ sealed class DesktopWindow : Window
         response.EnsureSuccessStatusCode();
         return JsonDocument.Parse(await response.Content.ReadAsByteArrayAsync());
     }
+
+    void StartContextReader()
+    {
+        if (quiescing || contextUpdates.IsCancellationRequested || contextTask is { IsCompleted: false }) return;
+        contextTask = WatchContextEvents(contextUpdates.Token);
+    }
+
+    async Task WatchContextEvents(CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, "/api/events");
+            using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+            response.EnsureSuccessStatusCode();
+            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+            var reader = new BoundedLineReader(stream, 4 * 1024 * 1024 + 6);
+            while (!cancellationToken.IsCancellationRequested &&
+                await reader.ReadLineAsync(cancellationToken).WaitAsync(TimeSpan.FromSeconds(12), cancellationToken).ConfigureAwait(false) is string line)
+                if (TerminalContextBridge.ExtractStateData(line) is string state) await ProjectContextAsync(state).ConfigureAwait(false);
+            if (!cancellationToken.IsCancellationRequested) await ProjectContextAsync("{}").ConfigureAwait(false);
+        }
+        catch (Exception error) when (cancellationToken.IsCancellationRequested || error is HttpRequestException or IOException or JsonException or TaskCanceledException or TimeoutException)
+        {
+            if (!cancellationToken.IsCancellationRequested) await ProjectContextAsync("{}").ConfigureAwait(false);
+        }
+    }
+
+    async Task RefreshContextProjectionAsync()
+    {
+        string? state;
+        lock (contextGate) state = lastStateJson;
+        if (state is null)
+        {
+            try { using var snapshot = await ReadSnapshot(); state = snapshot.RootElement.GetRawText(); }
+            catch (Exception error) when (error is HttpRequestException or IOException or JsonException or TaskCanceledException) { state = "{}"; }
+        }
+        await ProjectContextAsync(state);
+    }
+
+    async Task ProjectContextAsync(string state)
+    {
+        Dictionary<string, TerminalLaunch> current = Dispatcher.CheckAccess()
+            ? launches.ToDictionary()
+            : await Dispatcher.InvokeAsync(() => launches.ToDictionary()).Task.ConfigureAwait(false);
+        string payload = TerminalContextBridge.Project(state, current);
+        lock (contextGate)
+        {
+            lastStateJson = state == "{}" ? null : state;
+            pendingContextPayload = payload;
+            if (contextDeliveryPending) return;
+            contextDeliveryPending = true;
+        }
+        _ = Dispatcher.BeginInvoke(DeliverContext);
+    }
+
+    void DeliverContext()
+    {
+        string? payload;
+        lock (contextGate)
+        {
+            payload = pendingContextPayload; pendingContextPayload = null; contextDeliveryPending = false;
+        }
+        if (!quiescing && payload is not null && terminalView.CoreWebView2 is not null)
+            terminalView.CoreWebView2.PostWebMessageAsJson(payload);
+    }
+
     void PanesChanged() => Dispatcher.BeginInvoke(() =>
     {
         if (terminals is not null)
@@ -303,13 +500,14 @@ sealed class DesktopWindow : Window
             foreach (var id in launches.Keys.Where(x => !ids.Contains(x)).ToArray()) launches.Remove(id);
         }
         if (!quiescing && terminalView.CoreWebView2 is not null) terminalView.CoreWebView2.PostWebMessageAsJson("{\"kind\":\"panesChanged\"}");
+        if (!quiescing) _ = RefreshContextProjectionAsync();
     });
     async Task WatchService(OwnedProcess owned)
     {
         await owned.WaitForExitAsync();
         if (!quiescing && !closed) await Dispatcher.InvokeAsync(async () =>
         {
-            status.Visibility = Visibility.Visible; status.Text = "The owned service stopped. All terminal panes are being closed; restart Foundry explicitly.";
+            status.Visibility = Visibility.Visible; status.Text = "The owned service stopped. All terminal panes are being closed; restart Agentopia explicitly.";
             await StopOwnedAsync();
         });
     }
@@ -323,7 +521,7 @@ sealed class DesktopWindow : Window
         e.Cancel = true;
         if (closing) return;
         if (launches.Count > 0 && MessageBox.Show(this, "Quit and stop all owned terminal processes? Externally brokered/elevated processes are outside this guarantee.",
-            "Quit Agent Foundry", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+            "Quit Agentopia", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
         closing = true;
         await StopOwnedAsync(); closed = true;
         _ = Dispatcher.BeginInvoke(new Action(Close));
@@ -332,13 +530,15 @@ sealed class DesktopWindow : Window
     async Task StopCoreAsync()
     {
         quiescing = true;
+        contextUpdates.Cancel();
         try
         {
             service?.StandardInput.Dispose();
-            await Task.WhenAll(terminals is null ? Task.CompletedTask : terminals.DisposeAsync().AsTask(),
+            await Task.WhenAll(contextTask ?? Task.CompletedTask,
+                terminals is null ? Task.CompletedTask : terminals.DisposeAsync().AsTask(),
                 service is null ? Task.CompletedTask : service.WaitForExitAsync()).WaitAsync(TimeSpan.FromSeconds(3));
         }
-        catch (Exception error) when (error is IOException or TimeoutException or ObjectDisposedException) { }
+        catch (Exception error) when (error is IOException or TimeoutException or ObjectDisposedException or OperationCanceledException) { }
         finally
         {
             lifetime.Terminate(); service?.Dispose(); service = null;

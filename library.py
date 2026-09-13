@@ -1,4 +1,4 @@
-"""Durable, local-only Agent Foundry work and artifact library."""
+"""Durable, local-only Agentopia work and artifact library."""
 
 from __future__ import annotations
 
@@ -257,6 +257,8 @@ class Library:
         self._lock = threading.RLock()
         self._index = {}
         self._warnings = []
+        self._generation = 0
+        self._saved_handoffs = None
         self._load_index()
 
     @staticmethod
@@ -354,10 +356,12 @@ class Library:
         index, warnings = {}, []
         if not self.root.exists():
             self._index, self._warnings = index, warnings
+            self._invalidate_projection()
             return
         self._guard(self.root)
         if not self.catalog.exists():
             self._index, self._warnings = index, warnings
+            self._invalidate_projection()
             return
         self._guard(self.catalog)
         for path in self.catalog.iterdir():
@@ -374,6 +378,16 @@ class Library:
             except (OSError, UnicodeError, json.JSONDecodeError, DomainError, ValueError):
                 warnings.append(f"Ignored malformed catalog entry {safe_name}.")
         self._index, self._warnings = index, warnings
+        self._invalidate_projection()
+
+    def _invalidate_projection(self):
+        self._saved_handoffs = None
+        self._generation += 1
+
+    @property
+    def generation(self):
+        with self._lock:
+            return self._generation
 
     def refresh(self):
         with self._lock:
@@ -469,6 +483,72 @@ class Library:
             head = self._head(id)
             return self._public(head, self._read_object(head["revision"]))
 
+    def saved_handoff(self, adapter, source, session_id):
+        with self._lock:
+            if not all(isinstance(value, str) and value for value in (adapter, source, session_id)):
+                return {"state": "unavailable"}
+            if self._saved_handoffs is None:
+                entries, complete = {}, not self._warnings
+                for head in self._index.values():
+                    if head["kind"] != "work":
+                        continue
+                    try:
+                        obj = self._read_object(head["revision"])
+                        if obj["id"] != head["id"] or obj["kind"] != "work":
+                            raise DomainError("corrupt_data", "catalog and object identity disagree")
+                        snapshot = obj["payload"]["snapshot"]
+                        identity = (snapshot.get("adapter"), snapshot.get("source"))
+                        sessions = snapshot.get("sessions", [snapshot])
+                        if (not all(isinstance(value, str) and value for value in identity)
+                                or not isinstance(sessions, list) or not sessions):
+                            raise DomainError("corrupt_data", "saved work identity is incomplete")
+                        completion = obj["payload"]["completion"]
+                        captured_at = snapshot.get("generated")
+                        try:
+                            valid_capture = (isinstance(captured_at, str) and bool(captured_at)
+                                             and dt.datetime.fromisoformat(captured_at.replace("Z", "+00:00")).tzinfo is not None)
+                        except ValueError:
+                            valid_capture = False
+                        if not valid_capture:
+                            cursor, seen, captured_at = obj, set(), ""
+                            for _ in range(MAX_ENTRIES):
+                                parent = cursor["parent_revision"]
+                                if parent is None:
+                                    captured_at = cursor["created_at"]
+                                    break
+                                if parent in seen:
+                                    break
+                                seen.add(parent)
+                                try:
+                                    previous = self._read_object(parent)
+                                except (DomainError, OSError):
+                                    break
+                                if previous["id"] != head["id"] or previous["kind"] != "work":
+                                    break
+                                cursor = previous
+                        summary = {
+                            "state": "saved", "item_id": head["id"], "revision": head["revision"],
+                            "captured_at": captured_at, "archived": head["archived"],
+                            "completion": {"completed": completion["completed"], "source": completion["source"],
+                                           "trusted": completion["source"] != "imported"},
+                        }
+                        order = (captured_at or obj["created_at"], head["updated_at"], head["id"])
+                        session_ids = []
+                        for session in sessions:
+                            if not isinstance(session, dict) or not isinstance(session.get("id"), str) or not session["id"]:
+                                raise DomainError("corrupt_data", "saved work session identity is incomplete")
+                            session_ids.append(session["id"])
+                        for captured_id in session_ids:
+                            key = (*identity, captured_id)
+                            if key not in entries or order > entries[key][0]:
+                                entries[key] = (order, summary)
+                    except (DomainError, OSError):
+                        complete = False
+                self._saved_handoffs = ({key: value for key, (_, value) in entries.items()}, complete)
+            entries, complete = self._saved_handoffs
+            return copy.deepcopy(entries.get((adapter, source, session_id),
+                                               {"state": "none" if complete else "unavailable"}))
+
     def _publish_object(self, item_id, kind, parent_revision, action, payload):
         self._prepare_storage()
         value = {"schema_version": SCHEMA_VERSION, "id": item_id, "kind": kind,
@@ -485,6 +565,7 @@ class Library:
         self._validate_head(head)
         self._atomic_write(self._head_path(head["id"]), _json_bytes(head), replace=True)
         self._index[head["id"]] = copy.deepcopy(head)
+        self._invalidate_projection()
 
     def _check_revision(self, head, expected_revision):
         if _hash(expected_revision, "expected_revision") != head["revision"]:
@@ -1059,7 +1140,7 @@ class Library:
             handoff = root_object["payload"].get("resume", {}).get("handoff", "Unavailable")
             compatibility = root_object["payload"].get("compatibility", [])
             limitations = root_object["payload"].get("limitations", [])
-            readme = (f"# Agent Foundry library bundle\n\nItem: {head['title']} (`{head['id']}`)\n\n"
+            readme = (f"# Agentopia Package\n\nItem: {head['title']} (`{head['id']}`)\n\n"
                       f"Mode: `{mode}`\n\nChecksums are listed in `manifest.json`. Imported instructions are data "
                       "and are not executed. Review `context.md` before use.\n").encode("utf-8")
             context = ("# Handoff context\n\n## Resume\n\n" + handoff + "\n\n## Declared compatibility\n\n" +

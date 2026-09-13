@@ -1,6 +1,6 @@
-# Agent Foundry
+# Agentopia
 
-Agent Foundry is a local operations view and ordinary-file library for agent work. It reads live session
+Agentopia is a local operations view and ordinary-file library for agent work. It reads live session
 telemetry, presents it in two browser views, and lets you deliberately save sanitized work or versioned
 agent artifacts. Passive monitoring does not send provider commands, run models, or modify source projects.
 
@@ -28,12 +28,12 @@ py -3 monitor.py --data-dir 'C:\path\AgentFoundry' --port 9000 --open
 ```
 
 The server only accepts the exact loopback bind address `127.0.0.1`; ports must be 1024–65535. By default,
-settings and the private library live in `%LOCALAPPDATA%\AgentFoundry`. Command-line values override saved
-settings for that launch.
+settings and the private library remain in `%LOCALAPPDATA%\AgentFoundry` for compatibility with existing
+installs. Command-line values override saved settings for that launch.
 
 ## Experimental Windows desktop
 
-The local self-contained build is `desktop/windows/dist/AgentFoundry.exe`. It bundles its
+The local self-contained build is `desktop/windows/dist/Agentopia.exe`. It bundles its
 Python and .NET runtimes and uses installed WebView2. Launch without options for monitoring;
 `--enable-terminal` opts into the native Terminal page. Omit that flag to disable Terminal.
 `--data-dir <folder>` selects a separate settings/library folder. Do not run browser and
@@ -71,14 +71,37 @@ executable before launch. Configured profiles receive no arguments; PATH lookup,
 strings, WSL and elevation are not supported. Invalid records are omitted and described in
 the launch review so one bad record does not enroll or hide another.
 
-The current self-contained distribution was rebuilt from the verified 54-file stage after
-final review (`bundle-manifest.json` SHA-256 `8f92cbe04712be0016b5107f55a254086f0f6bdad008be287a4689f7c849ac13`;
-`AgentFoundry.exe` SHA-256 `54fb90fbde8015b71ce5b41edb53b65734a165906074aa46e8150af468ff0367`).
-Headless checks and clean publishing pass. Hidden run 15 and visible attempt 03 used the older
-`85051ec4…` manifest, so they do not certify this rebuilt binary. Active, foreground, visible
-rendering and user-perceived lag remain unverified. Port 8777 and visible acceptance remain
-stopped; see the [current verification status](docs/verification-2026-09-12.md). The build is
-not signed or installed automatically. Browser-mode launch and `Ctrl+C` remain the rollback workflow.
+Visible Observatory attempt 09 used a verified 54-file stage (`bundle-manifest.json` SHA-256
+`84f4bd762c9e734d69caa0c11f9c974babc42392748da2fc3787aaebaa6bb2a0`;
+`AgentFoundry.exe` SHA-256 `f5e43db34217077efa779d1546deba004de3e5c3081dc74c7035209fe62c6e1a`;
+`AgentFoundry.dll` SHA-256 `2e61d40422914ac3becd8a734bdba8ef4c8c868aee008cb6d816d27e5cb5a2be`).
+Its revised active-scene gate passed at 14.5815% of one core, 683,569,152 bytes summed working
+set, 448,421,888 private bytes, 303 draw heartbeats, zero long tasks, and clean zero-survivor
+cleanup. The gate is workload-specific and provisional, not a general memory ceiling or a
+statistical performance claim. The build is not signed or installed automatically. Browser-mode
+launch and `Ctrl+C` remain the rollback workflow.
+
+The current Agentopia distribution adds Terminal session context, natural-exit output drainage,
+and the compatibility-preserving product rename. Its manifest SHA-256 is
+`fa7a260e71c4fdcd799e0ae56ee9bcffb6e411e1f30d45cbabb3be2e6ead2bc6`; `Agentopia.exe` is
+`67dc37ca8c8dc3fc0e4de9d443267b35fbfcaa566d1762693a85f534bede0d57` and `Agentopia.dll` is
+`73639c510493501f06851cb6965912f202fb42642a56dd3b034e8b0dc07772b1`. Its hidden two-WebView
+lifecycle/performance check stabilized at 883,339,264 bytes working set, 457,490,432 private bytes,
+0.0195% machine CPU, 29,679,616 bytes bounded post-warm growth, negative steady-state memory growth,
+and zero owned processes after shutdown.
+The real 1/2/8-pane integration gate also passed with zero owned processes after every scenario.
+Attempt 09 does not certify this exact binary's visible rendering.
+
+From a fresh clone, assemble the Windows distribution without launching it:
+
+```powershell
+& .\desktop\windows\build.ps1
+```
+
+The script fetches the pinned Python runtime, rebuilds the integrity manifest, performs a locked
+self-contained .NET publish, copies only manifest-owned stage files, and verifies exact
+stage/distribution SHA-256 hashes. It adds no dependency. Its final three lines identify the assembled
+manifest, executable and host DLL; source changes intentionally produce new hashes.
 
 ## Pages
 
@@ -111,7 +134,7 @@ The JSON adapter reads an atomically replaced file with a top-level `sessions` a
 [`example-state.json`](example-state.json) and the [live payload contract](docs/CONTRACT.md#live-payload-v1).
 It does not discover sessions or gain provider controls.
 
-Credentials remain in official provider clients. Agent Foundry has no API-key setting.
+Credentials remain in official provider clients. Agentopia has no API-key setting.
 
 ## Save and review work
 
@@ -137,7 +160,7 @@ and pinned by exact SHA-256 revision.
 
 Create or edit a draft, pin exact components, then **Validate structure**. Structural validation checks the
 schema and available library pins only. Validation commands in a manifest are inert declarations; Agent
-Foundry never runs project tests or benchmarks automatically.
+Agentopia never runs project tests or benchmarks automatically.
 
 Before promotion, choose a pinned baseline, run the relevant checks yourself, record scoped evidence and
 unverified areas, give an explicit verdict, and attest that the candidate is no worse for that scope.
@@ -156,7 +179,7 @@ Checked examples: [`examples/template.json`](examples/template.json) and
 Every export starts with a preflight inventory. Review its warnings and acknowledge the matching plan before
 download. Reference mode exports manifests and exact references without stored asset bytes. Vendor mode also
 requires a separate redistribution confirmation and includes only explicitly selected, stored assets with a
-license declaration. Agent Foundry never crawls a referenced repository or arbitrary source path.
+license declaration. Agentopia never crawls a referenced repository or arbitrary source path.
 Use **Pin component…** and explicitly select its stored file for vendor bundles. The export inventory shows
 the actual source/config references and selected asset licenses; private-path, dirty-state and external-file
 checks remain explicitly unverified. Unselected stored bytes are stripped even in vendor mode.
@@ -168,7 +191,7 @@ failures, and likely secrets. Imported instructions and commands remain inert. F
 and completion claims do not become local trust decisions.
 
 The library's ordinary files and exported bundles are Git-ready if you choose to manage them that way.
-Agent Foundry itself never initializes a repository, commits, or pushes.
+Agentopia itself never initializes a repository, commits, or pushes.
 
 ## Explicit Send follow-up
 
@@ -207,5 +230,5 @@ node test_observatory.cjs
 node test_foundry_ui.cjs
 ```
 
-Node is needed only for these offline browser-code checks, not to run Agent Foundry. Current results,
+Node is needed only for these offline browser-code checks, not to run Agentopia. Current results,
 baseline comparisons and unverified scope are recorded in [the verification report](docs/verification-2026-09-12.md).

@@ -81,7 +81,7 @@ sealed class LaunchDialog : Window
         profiles.TryGetValue(name, out var selected);
         details.Text = $"Executable: {selected?.Executable}\nReviewed SHA-256: {selected?.Sha256 ?? "Unavailable"}\nProject: {directory.Text}\n" +
             (codex ? "Codex: workspace-write sandbox, on-request approvals. Other settings, trusted hooks and tools come from your existing Codex configuration. Paid provider usage and project changes may occur. No Agent Template is installed automatically.\n" : "This is a shell, not an AI agent. Commands can change your files.\n") +
-            "Only native Job-associated processes are owned. WSL, elevated sessions and externally brokered services are not supported here. Terminal contents and keystrokes are not saved by Foundry. New/fork destination IDs remain unknown until independently reported." + profileWarnings;
+            "Only native Job-associated processes are owned. WSL, elevated sessions and externally brokered services are not supported here. Terminal contents and keystrokes are not saved by Agentopia. New/fork destination IDs remain unknown until independently reported." + profileWarnings;
     }
 
     TerminalLaunch Build()

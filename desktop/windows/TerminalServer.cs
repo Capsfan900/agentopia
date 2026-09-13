@@ -474,6 +474,8 @@ public sealed class TerminalServer : IAsyncDisposable
                 if (await Task.WhenAny(sender, Task.Delay(TimeSpan.FromSeconds(1))).ConfigureAwait(false) != sender)
                     socket.Abort();
             }
+            else if (sender.IsCompletedSuccessfully && socket.State == WebSocketState.Open)
+                await SafeCloseAsync(socket, WebSocketCloseStatus.NormalClosure, "Terminal exited").ConfigureAwait(false);
             attached.Cancel();
             try { await Task.WhenAll(sender, receiver).ConfigureAwait(false); }
             catch (Exception error) when (error is OperationCanceledException or IOException or ChannelClosedException) { }
@@ -908,13 +910,13 @@ internal sealed class WorkerPane
         int exit;
         try { exit = await _process.WaitForExitAsync().ConfigureAwait(false); }
         catch { exit = _process.ExitCode ?? -1; }
+        if (_drain is not null) await _drain.ConfigureAwait(false);
         lock (_gate)
         {
             _status = "exited";
             _exitCode = exit;
             _commands.Writer.TryComplete();
             _attachment?.Complete();
-            _generations.Revoke();
         }
         _onExit(this);
     }

@@ -78,6 +78,6 @@ def require_normal_windows_token():
         elevated, size = wintypes.DWORD(), wintypes.DWORD()
         if (not advapi.GetTokenInformation(token, 20, ctypes.byref(elevated),
                                           ctypes.sizeof(elevated), ctypes.byref(size)) or elevated.value):
-            raise OSError("Run Agent Foundry without administrator privileges")
+            raise OSError("Run Agentopia without administrator privileges")
     finally:
         kernel.CloseHandle(token)

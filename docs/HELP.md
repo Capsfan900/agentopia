@@ -1,6 +1,6 @@
-# Agent Foundry guide
+# Agentopia guide
 
-Agent Foundry helps you preserve, evaluate, reuse, transport and resume recorded agent work. The Library stores ordinary files and versioned records. Reading or importing a record never runs its instructions.
+Agentopia helps you preserve, evaluate, reuse, transport and resume recorded agent work. The Library stores ordinary files and versioned records. Reading or importing a record never runs its instructions.
 
 ## Save Handoff
 
@@ -10,9 +10,11 @@ It does not save project files, transfer a running process, preserve hidden/mode
 
 Handoffs can be marked complete, reopened, reviewed and archived. These actions create new audit revisions; they do not rewrite the previous snapshot or delete the source session. The Operations Done filter is live history, not permanent storage.
 
+In the Windows Terminal page, a verified Codex resume pane can show its live **Working now**, approval state and whether a matching Handoff exists. A fork is labeled as a source-session reference; a new session is not claimed as linked until its identity is known. Ordinary shells remain unlinked. This adjacent status is read-only and never includes terminal contents or saved prompt/trace detail.
+
 ## Components and Agent Templates
 
-A **Component** is an independently versioned reusable ingredient: a Skill, Instruction, Workflow, Runbook or Script/Tool. A hook or evaluation procedure can be represented using these supported types; neither is currently a separate schema type. A source reference is a declaration, not a file that Foundry follows or installs. You may deliberately store an exact file with licensing information; that does not prove compatibility or redistribution rights.
+A **Component** is an independently versioned reusable ingredient: a Skill, Instruction, Workflow, Runbook or Script/Tool. A hook or evaluation procedure can be represented using these supported types; neither is currently a separate schema type. A source reference is a declaration, not a file that Agentopia follows or installs. You may deliberately store an exact file with licensing information; that does not prove compatibility or redistribution rights.
 
 An **Agent Template** is the complete recipe. It pins exact component versions and declares harness/model requirements, instruction layers, tools and capabilities, permissions, quality procedures, environment, provenance, limitations and resume instructions. These are inert declarations, not live configuration.
 
@@ -24,13 +26,13 @@ An isolated candidate is a new Library item; the original is unchanged. Adding a
 
 **Check schema & pinned references** checks record structure and recorded Library references and saves a validation report. It does not run commands, external tools, behavioral tests or benchmarks, or establish destination compatibility. Linked validation and manually run checks are not the same thing.
 
-**Compare & review** displays the selected baseline and candidate. You run relevant checks outside Foundry and record the scope, evidence, limitations and your own verdict. A successful structural check never supplies a human verdict.
+**Compare & review** displays the selected baseline and candidate. You run relevant checks outside Agentopia and record the scope, evidence, limitations and your own verdict. A successful structural check never supplies a human verdict.
 
 **Mark reviewed version approved** records an approved Library revision after the required review and structural checks. The approved pointer and current draft may differ. Approval does not install, configure, deploy or launch anything.
 
-## Foundry Packages
+## Agentopia Packages
 
-A Foundry Package (also called an Agent Foundry bundle in the file format) is a portable checksummed ZIP containing a manifest, README and handoff/context documentation plus selected records.
+An Agentopia Package (called an Agent Foundry bundle in the compatible v1 file format) is a portable checksummed ZIP containing a manifest, README and handoff/context documentation plus selected records.
 
 - Exporting a Component includes that component record.
 - Exporting an Agent Template includes the template and its exact pinned Library component records. External references remain declarations.
@@ -40,7 +42,7 @@ A Foundry Package (also called an Agent Foundry bundle in the file format) is a 
 
 Neither mode produces a project archive, credential package or hidden model state. External file availability, source changes, licenses and compatibility are not verified automatically. Inspect the export inventory and warnings before download.
 
-**Import Foundry Package** validates an Agent Foundry ZIP before importing its Agent Templates, Components and/or Handoffs as inert, locally untrusted records. It rejects arbitrary ZIP/files; it does not execute instructions, install components, modify a running agent or inherit foreign approvals. **New Component** is the direct local creation path. Import currently also supports Handoffs; describing it as components-only would hide an implemented capability.
+**Import Agentopia Package** validates an Agentopia ZIP (including compatible Agent Foundry v1 packages) before importing its Agent Templates, Components and/or Handoffs as inert, locally untrusted records. It rejects arbitrary ZIP/files; it does not execute instructions, install components, modify a running agent or inherit foreign approvals. **New Component** is the direct local creation path. Import currently also supports Handoffs; describing it as components-only would hide an implemented capability.
 
 ## Relevance and provenance
 
@@ -66,6 +68,6 @@ The goal is a reproducible, versioned composition that can be inspected, tested,
 
 ## Open format status
 
-Agent Foundry currently has a versioned file format, not an industry standard. Its JSON/Markdown records and checksummed ZIP packages are readable without a running Foundry service. The executable reference validators and format contract describe what this implementation accepts; another tool must independently implement and test the same semantics before cross-tool interoperability can be claimed.
+Agentopia currently has a versioned file format, not an industry standard. Its JSON/Markdown records and checksummed ZIP packages are readable without a running Agentopia service. The executable reference validators and format contract describe what this implementation accepts; another tool must independently implement and test the same semantics before cross-tool interoperability can be claimed.
 
 Current imports are strict: unsupported schema versions and unknown record keys are rejected, not executed or guessed. No extension mechanism or automatic migration is promised. Existing source projects, skills and agent configurations are read-only evidence and are never rewritten to conform to this format.

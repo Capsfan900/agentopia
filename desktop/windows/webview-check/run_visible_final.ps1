@@ -2,7 +2,7 @@ $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..')).Path
 $checkDir = Join-Path $repo 'desktop\windows\webview-check'
 $publish = Join-Path $checkDir 'bin\Release\net8.0-windows\win-x64\publish'
-$prefix = Join-Path $checkDir 'visible-08'
+$prefix = Join-Path $checkDir 'visible-09'
 if (Test-Path "$prefix-execution.json") { throw 'Final visible attempt already recorded; do not repeat.' }
 if ((Test-Path "$prefix.stdout.json") -or (Test-Path "$prefix.stderr.txt")) { throw 'Final visible output already exists; do not repeat.' }
 $manifestPath = Join-Path $repo 'desktop\windows\bundle-manifest.json'
@@ -28,14 +28,14 @@ if ($embeddedHash -ne $manifestHash) { throw 'Embedded checker manifest differs 
 $hashes = [ordered]@{
     checked_at = [DateTimeOffset]::UtcNow.ToString('O'); manifest_sha256 = $manifestHash
     embedded_manifest_sha256 = $embeddedHash; payload = @($payload)
-    files = @(Get-FileHash -LiteralPath @("$publish\webview-check.exe", "$publish\webview-check.dll", "$checkDir\VisibleCheck.cs", "$checkDir\test_visible_probe.cjs", "$repo\observatory.html", "$repo\desktop\windows\dist\AgentFoundry.exe", "$repo\desktop\windows\dist\AgentFoundry.dll") | Select-Object Path,Hash)
+    files = @(Get-FileHash -LiteralPath @("$publish\webview-check.exe", "$publish\webview-check.dll", "$checkDir\VisibleCheck.cs", "$checkDir\test_visible_probe.cjs", "$repo\observatory.html", "$repo\desktop\windows\dist\Agentopia.exe", "$repo\desktop\windows\dist\Agentopia.dll") | Select-Object Path,Hash)
 }
 $hashes | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath "$prefix-hashes.json"
 $ports = @(8777,8778,8779,8589,53931,41768,46897,21057,44705,1216,1217,13790,13791)
 function RelevantProcesses {
     $all = @(Get-CimInstance Win32_Process)
     $matches = @($all | Where-Object {
-        $_.Name -match '^(AgentFoundry|webview-check)\.exe$' -or
+        $_.Name -match '^(Agentopia|webview-check)\.exe$' -or
         ($_.Name -match '^(pythonw?|msedgewebview2|conhost)\.exe$' -and $_.CommandLine -match 'agent-session-monitor|agent-foundry-webview-check-|AgentFoundry\\WebView')
     })
     $ids = @($matches.ProcessId)
@@ -58,7 +58,7 @@ $preflight | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath "$prefix-preflig
 if ($preflight.processes.Count -or $preflight.listeners.Count) { throw 'Preflight is not clear; final visible attempt not launched.' }
 $started = [DateTimeOffset]::UtcNow
 $clock = [Diagnostics.Stopwatch]::StartNew()
-$process = Start-Process -FilePath "$publish\webview-check.exe" -ArgumentList '--visible-observatory' -WindowStyle Hidden -PassThru -RedirectStandardOutput "$prefix.stdout.json" -RedirectStandardError "$prefix.stderr.txt"
+$process = Start-Process -FilePath "$publish\webview-check.exe" -ArgumentList '--visible-observatory' -PassThru -RedirectStandardOutput "$prefix.stdout.json" -RedirectStandardError "$prefix.stderr.txt"
 $timedOut = $false
 try {
     if (-not $process.WaitForExit(60000)) {
@@ -94,7 +94,7 @@ $postflight = [ordered]@{
     new_fixture_directories = @(Get-ChildItem -LiteralPath $tempRoot -Directory -Filter 'agent-foundry-webview-check-*' | Where-Object FullName -notin $fixturesBefore | Select-Object -ExpandProperty FullName)
     new_cache_directories = @(Get-ChildItem -LiteralPath $cacheRoot -Directory | Where-Object FullName -notin $cachesBefore | Select-Object -ExpandProperty FullName)
     remaining_older_cache_ids = @(Get-ChildItem -LiteralPath $cacheRoot -Directory | Select-Object -ExpandProperty Name)
-    cleanup = $cleanup; visible08_exit_code = $execution.exit_code
+    cleanup = $cleanup; visible09_exit_code = $execution.exit_code
     active_measurement_valid = $measurement.active_measurement_valid; automatic_retry = $false
 }
 $postflight | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath "$prefix-postflight.json"

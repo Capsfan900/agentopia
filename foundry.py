@@ -50,11 +50,16 @@ class FoundryApp:
 
     def snapshot(self):
         with self.lock:
-            return self.store.snapshot()
+            snapshot = self.store.snapshot()
+            adapter, source = snapshot.get("adapter"), snapshot.get("source")
+            for row in snapshot.get("sessions", []):
+                if isinstance(row, dict):
+                    row["saved_handoff"] = self.library.saved_handoff(adapter, source, row.get("id"))
+            return snapshot
 
     def signature(self):
         with self.lock:
-            return (config_revision(self.config), self.store.signature())
+            return (config_revision(self.config), self.store.signature(), self.library.generation)
 
     def bootstrap(self):
         bridge = self.bridge.capability() if self.config["adapter"] == "codex" else {"available": False, "reason": "JSON sources are read-only."}

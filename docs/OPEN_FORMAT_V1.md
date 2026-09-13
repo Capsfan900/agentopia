@@ -1,8 +1,8 @@
-# Agent Foundry open format v1
+# Agentopia open format v1
 
-This is the human-readable v1 interchange reference for the Agent Foundry files currently accepted and produced by `library.py`. The executable reference is the current `Library` validation/export/import implementation; where this document summarizes a generic JSON limit, readers must follow that code if a boundary matters. It is not an industry standard, and independent interoperability has not been tested. A reader should treat another implementation as unverified until it has been tested against the public fixtures and this implementation.
+This is the human-readable v1 interchange reference for the Agentopia files currently accepted and produced by `library.py`. The executable reference is the current `Library` validation/export/import implementation; where this document summarizes a generic JSON limit, readers must follow that code if a boundary matters. It is not an industry standard, and independent interoperability has not been tested. A reader should treat another implementation as unverified until it has been tested against the public fixtures and this implementation.
 
-The format is ordinary JSON, UTF-8 text, and ZIP. It can be inspected without a running Agent Foundry app, network service, provider account, project checkout, or model. It is a current snapshot of records, not full history, a project archive, credential package, signature, or hidden model state.
+The format is ordinary JSON, UTF-8 text, and ZIP. It can be inspected without a running Agentopia app, network service, provider account, project checkout, or model. It is a current snapshot of records, not full history, a project archive, credential package, signature, or hidden model state. Existing Agent Foundry v1 packages remain compatible.
 
 ## Bytes, revisions, and records
 

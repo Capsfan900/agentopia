@@ -241,6 +241,57 @@ class LibraryTests(unittest.TestCase):
         self.assertEqual(len(refreshed["warnings"]), 1)
         self.assertNotIn("not json", refreshed["warnings"][0])
 
+    def test_saved_handoff_requires_exact_identity_and_exposes_only_safe_state(self):
+        saved = self.library.save_work({
+            "adapter": "json", "source": "C:/feeds/state.json", "selected_session_id": "child",
+            "generated": "2026-09-13T12:34:56.000Z",
+            "sessions": [
+                {"id": "root", "status": "completed", "prompt_context": {"text": "private prompt"}},
+                {"id": "child", "status": "completed", "trace": {"detail": "private trace"}},
+            ],
+        }, "Release", context="private context")
+
+        expected = {
+            "state": "saved", "item_id": saved["id"], "revision": saved["revision"],
+            "captured_at": "2026-09-13T12:34:56.000Z", "archived": False,
+            "completion": {"completed": True, "source": "runtime", "trusted": True},
+        }
+        self.assertEqual(self.library.saved_handoff("json", "C:/feeds/state.json", "root"), expected)
+        self.assertEqual(self.library.saved_handoff("json", "C:/feeds/state.json", "child"), expected)
+        self.assertEqual(self.library.saved_handoff("codex", "C:/feeds/state.json", "child"), {"state": "none"})
+        self.assertEqual(self.library.saved_handoff("json", "c:/feeds/state.json", "child"), {"state": "none"})
+        self.assertNotIn("private", json.dumps(expected))
+
+        generation = self.library.generation
+        archived = self.library.set_work_state(saved["id"], saved["revision"], archived=True, completed=False)
+        self.assertGreater(self.library.generation, generation)
+        self.assertEqual(self.library.saved_handoff("json", "C:/feeds/state.json", "child"), {
+            "state": "saved", "item_id": saved["id"], "revision": archived["revision"],
+            "captured_at": "2026-09-13T12:34:56.000Z", "archived": True,
+            "completion": {"completed": False, "source": "user", "trusted": True},
+        })
+
+    def test_saved_handoff_is_unavailable_when_library_work_cannot_be_evaluated(self):
+        self.library.save_work({"adapter": "json", "source": "C:/feeds/state.json", "sessions": [
+            {"id": "session-1", "status": "completed"}, {"status": "completed"},
+        ]}, "Incomplete")
+        self.assertEqual(self.library.saved_handoff("json", "C:/feeds/state.json", "session-1"),
+                         {"state": "unavailable"})
+
+        complete = self.library.save_work({"adapter": "json", "source": "C:/feeds/state.json", "generated": "not-a-time",
+                                           "id": "session-1", "status": "completed"}, "Complete")
+        self.assertEqual(self.library.saved_handoff("json", "C:/feeds/state.json", "session-1")["item_id"],
+                         complete["id"])
+        archived = self.library.set_work_state(complete["id"], complete["revision"], archived=True)
+        self.assertEqual(self.library.saved_handoff("json", "C:/feeds/state.json", "session-1")["captured_at"],
+                         complete["created_at"])
+        (self.root / "objects" / f'{archived["revision"]}.json').unlink()
+        self.assertEqual(self.library.saved_handoff("json", "C:/feeds/state.json", "session-1")["item_id"],
+                         complete["id"], "projection cache changes only at Library index/head boundaries")
+        self.library.refresh()
+        self.assertEqual(self.library.saved_handoff("json", "C:/feeds/state.json", "session-1"),
+                         {"state": "unavailable"})
+
     def test_valid_hash_cannot_smuggle_unknown_work_fields_from_disk(self):
         saved = self.library.save_work({"id": "s", "status": "completed"}, "Safe")
         original = json.loads((self.root / "objects" / f'{saved["revision"]}.json').read_text(encoding="utf-8"))
@@ -405,7 +456,8 @@ class LibraryTests(unittest.TestCase):
         self.assertEqual(set(second["unchanged_ids"]), {component["id"], template["id"]})
         self.assertEqual(imported_template["data"]["components"][0]["sha256"], imported_component["revision"])
 
-        work = self.library.save_work({"id": "reviewed", "status": "completed"}, "Reviewed work")
+        work = self.library.save_work({"adapter": "json", "source": "C:/feeds/import.json",
+                                       "id": "reviewed", "status": "completed"}, "Reviewed work")
         work = self.library.set_work_state(work["id"], work["revision"], verdict="successful", note="accepted")
         work_bundle = export_acked(self.library, work)
         work_destination = Library(Path(self.temp.name) / "stable-work")
@@ -416,6 +468,8 @@ class LibraryTests(unittest.TestCase):
         self.assertNotIn("review", imported_work["data"])
         self.assertEqual(imported_work["data"]["completion"],
                          {"completed": False, "source": "imported", "statuses": ["completed"]})
+        self.assertEqual(work_destination.saved_handoff("json", "C:/feeds/import.json", "reviewed")["completion"],
+                         {"completed": False, "source": "imported", "trusted": False})
 
     def test_import_reuses_exact_legacy_pinned_graph_without_rewriting_it(self):
         component_data = component_manifest()

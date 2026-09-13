@@ -42,6 +42,28 @@ class FoundryAppTests(unittest.TestCase):
                           'expected_revision': self.app.bootstrap()['settings_revision']})
         self.assertNotEqual(self.app.signature(), before)
 
+    def test_snapshot_projects_saved_handoffs_and_library_changes_feed_signature(self):
+        initial = self.app.snapshot()
+        self.assertTrue(all(row["saved_handoff"] == {"state": "none"} for row in initial["sessions"]))
+        before = self.app.signature()
+
+        saved = self.app.dispatch("/api/library/work", {"thread_id": "child", "context": "private note"})
+        self.assertNotEqual(self.app.signature(), before)
+        rows = {row["id"]: row["saved_handoff"] for row in self.app.snapshot()["sessions"]}
+        self.assertEqual(rows["root"]["item_id"], saved["id"])
+        self.assertEqual(rows["child"]["item_id"], saved["id"])
+        self.assertEqual(rows["other"], {"state": "none"})
+        self.assertEqual(set(rows["child"]),
+                         {"state", "item_id", "revision", "captured_at", "archived", "completion"})
+
+        before = self.app.signature()
+        archived = self.app.dispatch(f'/api/library/{saved["id"]}/state',
+                                     {"expected_revision": saved["revision"], "archived": True})
+        self.assertNotEqual(self.app.signature(), before)
+        projected = {row["id"]: row["saved_handoff"] for row in self.app.snapshot()["sessions"]}["child"]
+        self.assertTrue(projected["archived"])
+        self.assertEqual(projected["revision"], archived["revision"])
+
     def test_snapshot_resolves_source_family_and_cannot_accept_client_supplied_logs(self):
         item = self.app.dispatch("/api/library/work", {"thread_id": "child", "title": "Release review"})
         saved = self.app.library.get_item(item["id"])["data"]["snapshot"]

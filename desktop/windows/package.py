@@ -1,4 +1,4 @@
-"""Build the private, integrity-checked Agent Foundry staging tree."""
+"""Build the private, integrity-checked Agentopia staging tree."""
 import hashlib
 import json
 import os
@@ -224,7 +224,7 @@ def load_lock():
 
 def write_report(files):
     size = sum((STAGE / relative).stat().st_size for relative in files)
-    report = "# Private runtime staging\n\n- Python: `pythonembed-3.13-64` / 3.13.15\n- Metadata: " + METADATA_URL + "\n- Archive: " + ARCHIVE_URL + "\n- SHA-256: `" + ARCHIVE_SHA256 + "`\n- Staged files: " + str(len(files)) + "\n- Staged bytes: " + str(size) + "\n- Python path: `python313.zip`, `.`, `../../app`; `import site` remains disabled.\n\nThe host must verify `bundle-manifest.json` before startup. This is staging only; it does not sign, install, run Agent Foundry, or provide process containment.\n"
+    report = "# Private runtime staging\n\n- Python: `pythonembed-3.13-64` / 3.13.15\n- Metadata: " + METADATA_URL + "\n- Archive: " + ARCHIVE_URL + "\n- SHA-256: `" + ARCHIVE_SHA256 + "`\n- Staged files: " + str(len(files)) + "\n- Staged bytes: " + str(size) + "\n- Python path: `python313.zip`, `.`, `../../app`; `import site` remains disabled.\n\nThe host must verify `bundle-manifest.json` before startup. This is staging only; it does not sign, install, run Agentopia, or provide process containment.\n"
     write_atomic(REPORT_PATH, report.encode("utf-8"))
 
 

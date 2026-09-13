@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Agent Foundry · Observatory</title><link rel="stylesheet" href="/foundry.css">
+<title>Agentopia · Observatory</title><link rel="stylesheet" href="/foundry.css">
 <style>
 html,body{width:100%;height:100%;overflow:hidden}body{display:flex;flex-direction:column}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
@@ -16,10 +16,10 @@ html,body{width:100%;height:100%;overflow:hidden}body{display:flex;flex-directio
 </style>
 </head>
 <body>
-<header class="app-header"><span class="app-brand">Agent Foundry</span><span class="page-name">Observatory</span><nav class="app-nav" aria-label="Agent Foundry"><a href="/">Operations</a><a href="/observatory">Observatory</a><a href="/library">Library</a><a href="/settings">Settings</a><button id="session-actions">Session actions…</button><button id="help">Help</button></nav></header>
+<header class="app-header"><span class="app-brand">Agentopia</span><span class="page-name">Observatory</span><nav class="app-nav" aria-label="Agentopia"><a href="/">Operations</a><a href="/observatory">Observatory</a><a href="/library">Library</a><a href="/settings">Settings</a><button id="session-actions">Session actions…</button><button id="help">Help</button></nav></header>
 <main class="observatory-layout">
 <aside class="observatory-rail"><div class="rail-controls"><h1>Projects &amp; agents</h1><label class="sr-only" for="agent-picker">Select agent or session</label><select id="agent-picker" aria-label="Select agent or session"><option>Waiting for agents…</option></select><div class="controls"><button id="fit" type="button">Fit view</button><button id="motion" type="button" aria-pressed="false">Pause motion</button></div><div class="live offline" id="connection"><span class="dot"></span><span>connecting</span></div></div><nav class="session-rail" id="session-rail" aria-label="Projects, sessions, agents, and history"></nav></aside>
-<div class="world-cell"><canvas id="world" aria-label="Agent Foundry Observatory showing projects, sessions, and agents"></canvas><div class="city-caption"><span>AGENT FOUNDRY / OBSERVATORY</span><h2>Every task has a place.</h2><em>Live projects · recorded work</em></div><div class="city-coordinate">CITY GRID / ORTHOGRAPHIC<br>Movement illustrates recorded work</div><div class="hint">Drag to pan · wheel to zoom · select a worker</div><div class="legend" aria-hidden="true"><span><i style="background:#e4e7f5"></i>working</span><span><i style="background:#b5abfc"></i>tool</span><span><i style="background:#75798c"></i>idle</span><span><i style="background:#595d6c"></i>done</span></div></div>
+<div class="world-cell"><canvas id="world" aria-label="Agentopia Observatory showing projects, sessions, and agents"></canvas><div class="city-caption"><span>AGENTOPIA / OBSERVATORY</span><h2>Every task has a place.</h2><em>Live projects · recorded work</em></div><div class="city-coordinate">CITY GRID / ORTHOGRAPHIC<br>Movement illustrates recorded work</div><div class="hint">Drag to pan · wheel to zoom · select a worker</div><div class="legend" aria-hidden="true"><span><i style="background:#e4e7f5"></i>working</span><span><i style="background:#b5abfc"></i>tool</span><span><i style="background:#75798c"></i>idle</span><span><i style="background:#595d6c"></i>done</span></div></div>
 <div class="inspector-pane"><aside class="detail empty" id="detail">Select a worker to inspect its current task.</aside><div class="action-menu" id="action-menu" hidden></div></div>
 </main>
 <script>

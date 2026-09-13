@@ -1,6 +1,6 @@
 # Open-format v1 public fixtures
 
-These tiny public records exercise the current Agent Foundry v1 importer. They contain no credentials, private paths, source-project data, or executable instructions.
+These tiny public records exercise the current Agentopia importer and its compatible Agent Foundry v1 format. They contain no credentials, private paths, source-project data, or executable instructions.
 
 `test_open_format.py` creates temporary reference and vendor ZIPs from these fixed bytes, then uses the existing `Library` importer/exporter. The ZIPs are deliberately runtime-generated rather than committed binary files.
 

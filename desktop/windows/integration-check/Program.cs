@@ -245,7 +245,7 @@ static class Program
 
         Connection exit = await ConnectAsync(client, origin, secret, paneId, cancellationToken);
         sockets.Add(exit.Socket);
-        double exitEcho = await ExitNaturallyAsync(exit.Socket, 0, cancellationToken);
+        double exitEcho = await ExitNaturallyAsync(exit.Socket, 0, cancellationToken, proveFinalDrain: true);
         Metric("replay", new
         {
             panes = 1,
@@ -263,13 +263,18 @@ static class Program
     }
 
     static async Task<double> ExitNaturallyAsync(
-        ClientWebSocket socket, int index, CancellationToken cancellationToken)
+        ClientWebSocket socket, int index, CancellationToken cancellationToken, bool proveFinalDrain = false)
     {
-        string marker = $"AF_EXIT_{index}_" + Guid.NewGuid().ToString("N");
+        string tail = $"{index}_" + Guid.NewGuid().ToString("N");
+        string marker = "AF_EXIT_" + tail;
+        string command = $"@set \"AF_A=AF_EXIT_\"\r\n@set \"AF_B={tail}\"\r\n" +
+            (proveFinalDrain ? "@for /L %i in (1,1,2048) do @echo AF_FINAL_%i\r\n" : "") +
+            "@echo %AF_A%%AF_B%\r\n@exit /b 7\r\n";
+        Check(!command.Contains(marker, StringComparison.Ordinal), "natural-exit marker appears literally in echoed input");
         await SendResizeAsync(socket, 100, 40, cancellationToken);
         var timer = Stopwatch.StartNew();
         Task<long> receive = ReceiveUntilAsync(socket, marker, 32L * 1024 * 1024, cancellationToken);
-        await SendInputAsync(socket, "echo " + marker + " & exit /b 7\r\n", cancellationToken);
+        await SendInputAsync(socket, command, cancellationToken);
         await receive.WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);
         return timer.Elapsed.TotalMilliseconds;
     }

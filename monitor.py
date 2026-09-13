@@ -1,4 +1,4 @@
-"""Agent Foundry: local agent-session monitoring and explicit work-library actions.
+"""Agentopia: local agent-session monitoring and explicit work-library actions.
 
 Supports a Codex local-store adapter and an agent-agnostic JSON adapter. Passive monitoring never invokes
 providers or reads auth.json or hidden reasoning. Visible prompts and statements supply bounded semantics.
@@ -1566,7 +1566,7 @@ def main():
     from desktop_runtime import DataDirectoryLease, read_handshake, require_normal_windows_token
     default_home = Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--data-dir", type=Path, default=default_data_dir(), help="Agent Foundry settings and private library folder")
+    parser.add_argument("--data-dir", type=Path, default=default_data_dir(), help="Agentopia settings and private library folder")
     parser.add_argument("--codex-home", type=Path)
     parser.add_argument("--adapter", choices=("codex", "json"))
     parser.add_argument("--state-file", type=Path, help="JSON state file when --adapter json is selected")
@@ -1587,7 +1587,7 @@ def main():
         if value is not None:
             config[key] = str(value) if isinstance(value, Path) else value
     if config["host"] != "127.0.0.1":
-        parser.error("Agent Foundry interactive features require exact --host 127.0.0.1.")
+        parser.error("Agentopia interactive features require exact --host 127.0.0.1.")
     if type(config["port"]) is not int or not 1024 <= config["port"] <= 65535:
         parser.error("Port must be between 1024 and 65535.")
     if config["adapter"] == "json":
@@ -1620,7 +1620,7 @@ def main():
                 server.shutdown()
             Thread(target=parent_lifetime, daemon=True).start()
         else:
-            print(f"Agent Foundry — Operations: http://127.0.0.1:{server.server_port}/")
+            print(f"Agentopia — Operations: http://127.0.0.1:{server.server_port}/")
             print(f"Adapter: {config['adapter']} (Ctrl+C to stop)")
             if config["open"]:
                 webbrowser.open(f"http://127.0.0.1:{server.server_port}/")
