@@ -55,14 +55,14 @@ function drawScene(ms){
     try{ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,width,height);const gradient=ctx.createRadialGradient(width*.5,height*.4,20,width*.5,height*.4,Math.max(width,height)*.7);gradient.addColorStop(0,'#1d1f30');gradient.addColorStop(1,'#0f101a');ctx.fillStyle=gradient;ctx.fillRect(0,0,width,height);drawGrid();activeAreas().slice().sort((a,b)=>(a.x+a.z)-(b.x+b.z)).forEach(drawArea);staticDirty=false}finally{ctx=screenCtx}
   }
   ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,width,height);ctx.drawImage(staticCanvas,0,0,width,height);hits.length=0;
-  const t=ms/1000,render=cityWorkers();render.sort((a,b)=>(a.x+a.z)-(b.x+b.z));render.forEach(w=>drawWorker(w,workerPosition(w,t)));
+  const t=ms/1000,render=cityWorkers();drawEffects(ms);render.sort((a,b)=>(a.x+a.z)-(b.x+b.z));render.forEach(w=>drawWorker(w,workerPosition(w,t)));
 }
 function choose(id){if(!workers.has(id))return;if(selected!==id)detail.scrollTop=0;selected=id;picker.value=id;updateDetail();menuTarget=id;renderActions();renderRail()}
 picker.addEventListener('change',()=>choose(picker.value));document.querySelector('#fit').addEventListener('click',()=>{fitView();drawScene(performance.now())});canvas.addEventListener('pointerdown',e=>{dragging=true;moved=false;last={x:e.clientX,y:e.clientY};canvas.classList.add('dragging');canvas.setPointerCapture(e.pointerId)});canvas.addEventListener('pointermove',e=>{if(!dragging)return;const dx=e.clientX-last.x,dy=e.clientY-last.y;if(Math.abs(dx)+Math.abs(dy)>2)moved=true;camera.x+=dx;camera.y+=dy;staticDirty=true;last={x:e.clientX,y:e.clientY}});canvas.addEventListener('pointerup',e=>{dragging=false;canvas.classList.remove('dragging');if(!moved){const r=canvas.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top,hit=[...hits].reverse().find(h=>x>=h.x&&x<=h.x+h.w&&y>=h.y&&y<=h.y+h.h);if(hit)choose(hit.id)}});canvas.addEventListener('wheel',e=>{e.preventDefault();camera.zoom=Math.max(.35,Math.min(2,camera.zoom*Math.exp(-e.deltaY*.001)));staticDirty=true},{passive:false});
 // The world is an isometric Canvas scene; positions illustrate recorded work, not physical telemetry.
 const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
 colors.approval='#9184d9';let paused=reducedMotion.matches,hovered='';
-const stations=[{x:-2.8,z:-2.6,name:'Research',color:'#456781'},{x:2.8,z:-2.6,name:'Workshop',color:'#4d786c'},{x:2.8,z:2.6,name:'Review',color:'#806a43'},{x:-2.8,z:2.6,name:'Standby',color:'#5e5a76'}];
+const stations=[{x:-2.8,z:-2.6,name:'Research',color:'#456781'},{x:2.8,z:-2.6,name:'Build',color:'#4d786c'},{x:2.8,z:2.6,name:'Review',color:'#806a43'},{x:-2.8,z:2.6,name:'Standby',color:'#5e5a76'}];
 function fitView(){
   staticDirty=true;const visible=activeAreas();if(!visible.length){camera.x=0;camera.y=0;camera.zoom=1;return}
   const points=[];
@@ -129,7 +129,7 @@ function drawWorker(w,pos){
   const glyph={waiting:'Ⅱ',completed:'✓',failed:'×',idle:'○',stale:'…'}[status];
   if(glyph){ctx.fillStyle=color;ctx.font='700 13px Segoe UI';ctx.textAlign='center';ctx.fillText(glyph,14,-52+slouch)}
   ctx.restore();
-  const name=short(w.nickname||(w.parent?w.name:projectName(w.cwd))||w.id,19),label=status==='approval'?'! APPROVAL REQUIRED':walking?'IN TRANSIT · '+status.toUpperCase():short(w.working_on?.summary||status.toUpperCase(),28);
+  const name=short(w.nickname||(w.parent?w.name:projectName(w.cwd))||w.id,19),label=status==='approval'?'! APPROVAL REQUIRED':walking?'IN TRANSIT · '+w.phaseName.toUpperCase():short(w.phaseName.toUpperCase()+' · '+(w.working_on?.summary||status),28);
   ctx.font='600 11px Segoe UI';const width=Math.max(ctx.measureText(name).width,ctx.measureText(label).width)+16,y=p.y-(status==='approval'?96:58)*scale-35;
   ctx.fillStyle=chosen?'#2b2741f2':'#181a26ea';ctx.fillRect(p.x-width/2,y,width,31);ctx.fillStyle=color;ctx.fillRect(p.x-width/2,y,2,31);
   ctx.textAlign='center';ctx.fillStyle='#e9e9ed';ctx.fillText(name,p.x,y+12);ctx.font='8px ui-monospace';ctx.fillStyle=color;ctx.fillText(label,p.x,y+24);
@@ -138,15 +138,16 @@ function drawWorker(w,pos){
 canvas.addEventListener('pointermove',e=>{if(dragging)return;const r=canvas.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top,id=[...hits].reverse().find(h=>x>=h.x&&x<=h.x+h.w&&y>=h.y&&y<=h.y+h.h)?.id||'';if(id!==hovered){hovered=id;paint()}});canvas.addEventListener('pointerleave',()=>{hovered='';paint()});canvas.addEventListener('pointercancel',()=>{dragging=false;canvas.classList.remove('dragging')});
 const motion=document.querySelector('#motion');function motionLabel(){motion.textContent=paused?'Resume motion':'Pause motion';motion.setAttribute('aria-pressed',String(paused))}motion.onclick=()=>{paused=!paused;motionLabel()};motionLabel();
 const legend=document.createElement('span');legend.textContent='! approval';legend.style.color=colors.approval;document.querySelector('.legend').append(legend);
-let renderedAt=0,animationFrame=0;
-function motionActive(){return !paused&&!document.hidden&&document.hasFocus()&&cityWorkers().some(w=>['working','tool','approval'].includes(statusFor(w))||w.route?.length)}
+let renderedAt=0,animationFrame=0,effects=[];const observationMemory=new Map(),effectLifetime=1600;
+function liveEffects(ms=performance.now()){effects=effects.filter(effect=>ms-effect.startedAt<effectLifetime);return effects}
+function motionActive(){return !paused&&!document.hidden&&document.hasFocus()&&(effects.length||cityWorkers().some(w=>['working','tool','approval'].includes(statusFor(w))||w.route?.length))}
 function updateAnimation(){
   if(motionActive()){if(!animationFrame)animationFrame=requestAnimationFrame(frame)}
   else if(animationFrame){cancelAnimationFrame(animationFrame);animationFrame=0}
 }
 function frame(ms){
   animationFrame=0;
-  if(!motionActive()){renderedAt=ms;return}
+  const hadEffects=effects.length;if(!motionActive()){renderedAt=ms;if(hadEffects&&!paused&&!document.hidden&&document.hasFocus())drawScene(ms);return}
   if(ms-renderedAt>=33){const dt=Math.min(.1,(ms-renderedAt)/1000);renderedAt=ms;for(const w of cityWorkers())workerPosition(w,ms/1000,dt);if(following&&cityWorkers().some(w=>w.id===following))focusWorker(following);drawScene(ms)}
   updateAnimation();
 }
@@ -154,7 +155,7 @@ const paint=()=>{if(!document.hidden&&document.hasFocus())drawScene(performance.
 document.addEventListener('visibilitychange',paint);window.addEventListener('focus',paint);window.addEventListener('blur',paint);
 reducedMotion.addEventListener('change',event=>{paused=event.matches;motionLabel();paint()});
 // Feed updates preserve district addresses, camera state, and an agent's route in progress.
-const districtSpacing=16,districtRadius=5.7,arterialHalf=districtSpacing/2,districtMemory=new Map(),workstreamMemory=new Map();
+const districtSpacing=16,districtRadius=5.7,arterialHalf=districtSpacing/2,districtMemory=new Map();
 Object.assign(colors,{waiting:'#9397ab',stale:'#595d6c'});
 function canonicalCwd(cwd){let path=String(cwd||'').trim();if(!path)return'';path=path.replace(/^\\\\\?\\UNC\\/i,'//').replace(/^\\\\\?\\/,'').replace(/^\/\/\?\/UNC\//i,'//').replace(/^\/\/\?\//,'').replace(/\\/g,'/');const unc=path.startsWith('//');path=(unc?'//':'')+path.replace(/^\/+|\/+$/g,'').replace(/\/{2,}/g,'/');return /^[a-z]:\//i.test(path)||unc?'win:'+path.toLowerCase():'posix:'+path}
 function projectGroups(rows){rows=Array.isArray(rows)?rows.filter(a=>a&&typeof a.id==='string'):[];const byId=new Map(rows.map(a=>[a.id,a])),groups=new Map();for(const agent of rows){const root=rootFor(agent,byId),key=canonicalCwd(root.cwd)||`unknown:${root.id}`;if(!groups.has(key))groups.set(key,{key,cwd:root.cwd||'',sessions:[],agents:[]});const group=groups.get(key);group.agents.push(agent);if(agent.id===root.id&&!group.sessions.some(item=>item.id===root.id))group.sessions.push(root)}for(const group of groups.values()){group.sessions.sort((a,b)=>a.id.localeCompare(b.id));group.root=group.sessions[0];group.cwd=group.root?.cwd||group.cwd}return [...groups.values()].sort(projectOrder)}
@@ -172,6 +173,20 @@ function statusFor(w){
   return 'idle';
 }
 function workstreamFor(agent){const label=agent.parent?(agent.task||agent.title):(agent.task||agent.title||agent.working_on?.task_path?.[1]);return String(label||'Unassigned work').trim()||'Unassigned work'}
+function ownedObservations(agent){return (Array.isArray(agent.trace?.observations)?agent.trace.observations:[]).filter(item=>item&&typeof item==='object'&&(!item.session_id||item.session_id===agent.id))}
+function currentObservation(agent){
+  const rows=ownedObservations(agent),current=rows.find(item=>item.id===agent.working_on?.observation_id),live=[...rows].reverse().find(item=>['running','working','approval'].includes(item.status)&&['tool','file','test','approval','error','result','delegation'].includes(item.kind));
+  return ['tool','approval'].includes(statusFor(agent))?(live||current||rows.at(-1)):(current||live||rows.at(-1));
+}
+function phaseFor(agent,previous=''){
+  const status=statusFor(agent);if(['idle','waiting','stale'].includes(status))return 'standby';if(status==='approval')return 'review';
+  const item=currentObservation(agent)||{},kind=item.kind||'',summary=(item.summary||agent.working_on?.summary||agent.current_action||agent.task||agent.title||'').toLowerCase();
+  if(kind==='test'||kind==='result'||kind==='error'||kind==='outcome'||/\b(test|verify|review|audit|validate|check)\w*\b/.test(summary))return 'review';
+  if(/\b(read|search|inspect|research|analy[sz]|investigat|look up)\w*\b/.test(summary))return 'research';
+  if(kind==='prompt'||kind==='agent'||kind==='delegation')return 'research';
+  if(kind==='tool'||kind==='file'||/\b(edit|build|implement|fix|write|creat|refactor|patch|install|run)\w*\b/.test(summary))return 'build';
+  return previous||'build';
+}
 function terminalStatus(status){return status==='completed'||status==='failed'}
 function cityWorkers(){return [...workers.values()].filter(w=>!terminalStatus(statusFor(w)))}
 function activeAreas(){const visible=new Set(cityWorkers().map(w=>w.area.key));return areas.filter(area=>visible.has(area.key))}
@@ -184,30 +199,29 @@ function sync(next){
   });
   const nextWorkers=new Map();
   for(const area of areas){
-    const group=area.agents.filter(agent=>!terminalStatus(statusFor(agent))),memory=workstreamMemory.get(area.key)||new Map();workstreamMemory.set(area.key,memory);
-    for(const agent of group){const label=workstreamFor(agent),key=label.toLocaleLowerCase();if(!memory.has(key))memory.set(key,{key,label,slot:memory.size})}
-    area.workstreams=[...new Set(group.map(agent=>workstreamFor(agent).toLocaleLowerCase()))].map(key=>memory.get(key)).sort((a,b)=>a.slot-b.slot);
+    const group=area.agents.filter(agent=>!terminalStatus(statusFor(agent)));
+    area.workstreams=stations.map((station,slot)=>({key:station.name.toLowerCase(),label:station.name,slot,x:station.x,z:station.z}));
     for(const stream of area.workstreams){
-      const k=stream.slot,members=group.filter(agent=>workstreamFor(agent).toLocaleLowerCase()===stream.key),used=new Set(),station=stations[k%stations.length];stream.x=station.x;stream.z=station.z;
-      for(const agent of members){const old=workers.get(agent.id);if(old?.station===k&&old.area.key===area.key)used.add(old.seat)}
+      const k=stream.slot,station=stations[k],members=group.filter(agent=>phaseFor(agent,workers.get(agent.id)?.phaseName)===stream.key),used=new Set();
+      for(const agent of members){const old=workers.get(agent.id);if(old?.phaseName===stream.key&&old.area.key===area.key)used.add(old.seat)}
       for(const agent of members){
-        const old=workers.get(agent.id);let seat=old?.station===k&&old.area.key===area.key?old.seat:0;
-        if(!(old?.station===k&&old.area.key===area.key)){while(used.has(seat))seat++;used.add(seat)}
+        const old=workers.get(agent.id);let seat=old?.phaseName===stream.key&&old.area.key===area.key?old.seat:0;
+        if(!(old?.phaseName===stream.key&&old.area.key===area.key)){while(used.has(seat))seat++;used.add(seat)}
         const targetX=area.x+station.x+(seat%3-1)*1.25,targetZ=area.z+station.z+Math.floor(seat/3)*1.25;
-        const w={...agent,area,station:k,seat,targetX,targetZ,x:old?.x??targetX,z:old?.z??targetZ,route:old?.route||[],phase:(hash(agent.id)%628)/100};
+        const w={...agent,area,station:k,phaseName:stream.key,seat,targetX,targetZ,x:old?.x??targetX,z:old?.z??targetZ,route:old?.route||[],phase:(hash(agent.id)%628)/100};
         if(!old||old.targetX!==targetX||old.targetZ!==targetZ){
           if(old){
             // Finish the current safe segment before joining the next assignment's transit lane.
-            const route=old.route||[],from=route.at(-1)||w,departure=old.area.z+.95,arrival=area.z+.95;
-            w.route=[...route,{x:from.x,z:departure},...(old.area.key===area.key?[]:[{x:-6.5,z:departure},{x:-6.5,z:arrival}]),{x:targetX,z:arrival},{x:targetX,z:targetZ}];
+            const first=old.route?.[0],from=first||old,departure=old.area.z+.95,arrival=area.z+.95;
+            w.route=[...(first?[{...first}]:[]),{x:from.x,z:departure},...(old.area.key===area.key?[]:[{x:-6.5,z:departure},{x:-6.5,z:arrival}]),{x:targetX,z:arrival},{x:targetX,z:targetZ}];
           }else w.route=[];
         }
         nextWorkers.set(w.id,w);
       }
     }
-    for(const agent of area.agents.filter(agent=>terminalStatus(statusFor(agent)))){const old=workers.get(agent.id);nextWorkers.set(agent.id,{...agent,area,station:-1,seat:0,targetX:old?.targetX??area.x,targetZ:old?.targetZ??area.z,x:old?.x??area.x,z:old?.z??area.z,route:[],phase:(hash(agent.id)%628)/100})}
+    for(const agent of area.agents.filter(agent=>terminalStatus(statusFor(agent)))){const old=workers.get(agent.id);nextWorkers.set(agent.id,{...agent,area,station:-1,phaseName:old?.phaseName||'standby',seat:0,targetX:old?.targetX??area.x,targetZ:old?.targetZ??area.z,x:old?.x??area.x,z:old?.z??area.z,route:[],phase:(hash(agent.id)%628)/100})}
   }
-  workers=nextWorkers;state=next;staticDirty=true;
+  workers=nextWorkers;captureEffects(agents);state=next;staticDirty=true;
   if(!workers.has(selected))selected=[...workers.values()].find(w=>statusFor(w)==='approval')?.id||[...workers.values()].find(w=>active(w.status))?.id||workers.keys().next().value||'';
   if(!workers.has(hovered))hovered='';
   for(const area of areas)area.color=rootAccent(area.root);
@@ -226,6 +240,36 @@ function workerPosition(w,t,dt=0){
   }
   return w;
 };
+function observationFingerprint(item){return [item.status||'',item.end_timestamp||'',item.exit_code??''].join('|')}
+function captureEffects(agents){
+  const priorities={tool:1,file:2,test:3,delegation:4,approval:5,outcome:6,result:7,error:8},present=new Set(agents.map(agent=>agent.id));
+  for(const agent of agents){
+    const previous=observationMemory.get(agent.id),current=new Map(previous?.fingerprints||[]),changed=new Map(),rows=ownedObservations(agent),watermark=previous?.watermark||'';let newest=watermark;
+    for(const item of rows){
+      if(!(item.kind in priorities)||!item.id)continue;
+      const fingerprint=observationFingerprint(item),old=previous?.fingerprints.get(item.id),related=item.call_id&&rows.some(other=>other.id!==item.id&&other.call_id===item.call_id&&previous?.fingerprints.has(other.id)),backfill=!!previous&&old===undefined&&((item.timestamp&&watermark&&item.timestamp<=watermark)||(!item.timestamp&&!['running','working','approval'].includes(item.status)&&!related));current.delete(item.id);current.set(item.id,fingerprint);if(item.timestamp&&item.timestamp>newest)newest=item.timestamp;
+      if(!previous||old===fingerprint||backfill)continue;
+      const key=item.call_id||item.id,existing=changed.get(key);if(!existing||priorities[item.kind]>priorities[existing.kind])changed.set(key,item);
+    }
+    observationMemory.set(agent.id,{fingerprints:new Map([...current].slice(-240)),watermark:newest});if(!previous)continue;
+    const worker=workers.get(agent.id);if(!worker)continue;
+    for(const item of changed.values()){
+      const hub={x:worker.area.x,z:worker.area.z-.4},child=item.kind==='delegation'?[...workers.values()].find(candidate=>candidate.parent===agent.id&&ownedObservations(candidate).some(node=>node.kind==='agent'&&node.parent_id===item.id)):null;
+      const start=['result','error','outcome'].includes(item.kind)?{x:worker.x,z:worker.z}:hub,end=child?{x:child.x,z:child.z}:['result','error','outcome'].includes(item.kind)?hub:{x:worker.x,z:worker.z};
+      effects.push({ownerId:agent.id,kind:item.kind,summary:item.summary||item.kind,from:start,to:end,startedAt:performance.now()});
+    }
+  }
+  for(const id of observationMemory.keys())if(!present.has(id))observationMemory.delete(id);
+  effects=effects.slice(-24);
+}
+function drawEffects(ms){
+  if(paused)return;
+  const palette={delegation:'#73d7ff',tool:'#b5abfc',file:'#7dd7c5',test:'#f0c879',result:'#9be29b',outcome:'#9be29b',approval:'#d0a7ff',error:'#e68d8d'};
+  for(const effect of liveEffects(ms)){
+    const age=Math.max(0,ms-effect.startedAt),progress=Math.min(1,age/effectLifetime),from=project(effect.from.x,effect.from.z,.45),to=project(effect.to.x,effect.to.z,.45),x=from.x+(to.x-from.x)*progress,y=from.y+(to.y-from.y)*progress,color=palette[effect.kind]||'#b5abfc';
+    ctx.save();ctx.globalAlpha=.22*(1-progress);ctx.strokeStyle=color;ctx.lineWidth=1.4;ctx.setLineDash([4,5]);ctx.beginPath();ctx.moveTo(from.x,from.y);ctx.lineTo(to.x,to.y);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=.9*(1-progress*.7);ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,y,2.8,0,Math.PI*2);ctx.fill();ctx.strokeStyle=color;ctx.globalAlpha=.35*(1-progress);ctx.beginPath();ctx.arc(x,y,5+progress*7,0,Math.PI*2);ctx.stroke();ctx.restore();
+  }
+}
 canvas.setAttribute('tabindex','0');
 canvas.addEventListener('keydown',e=>{
   const pan={ArrowLeft:[36,0],ArrowRight:[-36,0],ArrowUp:[0,36],ArrowDown:[0,-36]}[e.key];

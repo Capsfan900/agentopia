@@ -32,7 +32,7 @@ run('sync(fixture);choose("tests");camera.zoom=1.3;camera.x=42;camera.y=-18;came
 check('workers.size===4 && areas.length===1');
 check('workers.get("nested").area.root.id==="lead"');
 check('selected==="tests" && camera.zoom===1.3 && camera.x===42 && camera.y===-18 && camera.yaw===.9 && camera.pitch===.7');
-check('workers.get("tests").station===areas[0].workstreams.find(s=>s.label==="Run verification suites").slot');
+check('workers.get("tests").phaseName==="review"&&workers.get("tests").station===areas[0].workstreams.find(s=>s.label==="Review").slot');
 check('detail.innerHTML.includes("Integrate the release")', 'A selected subagent exposes its parent task in the inspector');
 
 // New/reordered unrelated roots must not teleport an existing community or worker.
@@ -41,8 +41,8 @@ check('workers.get("nested").area.x===oldArea.x && workers.get("nested").area.z=
 check('workers.get("nested").x===oldWorker.x && workers.get("nested").z===oldWorker.z');
 check('selected==="tests" && camera.zoom===1.3 && camera.yaw===.9 && camera.pitch===.7');
 
-// Changing assignment moves a person along a bounded route, then stops at the desk.
-run('var next=JSON.parse(JSON.stringify(expanded));next.sessions.find(a=>a.id==="nested").task="Implement project changes";var before={x:workers.get("nested").x,z:workers.get("nested").z};sync(next);var w=workers.get("nested");');
+// Changing recorded work phase moves a person along a bounded route, then stops at the desk.
+run('var next=JSON.parse(JSON.stringify(expanded));next.sessions.find(a=>a.id==="nested").task="Implement project changes";next.sessions.find(a=>a.id==="nested").current_action="Implement project changes";var before={x:workers.get("nested").x,z:workers.get("nested").z};sync(next);var w=workers.get("nested");');
 check('w.x===before.x && w.z===before.z', 'A feed refresh preserves the current travel position');
 run('paused=false;workerPosition(w,1,.05)');
 check('Math.hypot(w.x-before.x,w.z-before.z)>0 && Math.hypot(w.x-before.x,w.z-before.z)<.3', 'Assignment travel starts at walking speed');
@@ -197,18 +197,63 @@ regression('Idle, hidden, unfocused and paused scenes stop scheduling animation'
   assert.equal(run('quietDraws'),before+1,'Focus paints the latest retained state');
   } finally {run('drawScene=quietScene;document.focused=true;document.hidden=false;paused=false')}
 });
-regression('Buildings represent stable assignments and completed workers remain history only',()=>{
+regression('Buildings represent work phases and completed workers remain history only',()=>{
   sandbox.streamFixture={sessions:[
     {id:'stream-root',cwd:'C:/Streams',status:'working',task:'Coordinate project',current_action:'Reading files'},
     {id:'builder',parent:'stream-root',status:'working',task:'Build operations',current_action:'Inspect markup'},
     {id:'reviewer',parent:'stream-root',status:'working',task:'Review operations',current_action:'Run tests'},
     {id:'done-worker',parent:'stream-root',status:'completed',task:'Old work'}]};
-  run('sync(streamFixture);var streamKeys=areas[0].workstreams.map(s=>s.key),builderStation=workers.get("builder").station;streamFixture.sessions[1].current_action="Write code";sync(streamFixture);renderRail()');
-  check('JSON.stringify(areas[0].workstreams.map(s=>s.key))===JSON.stringify(streamKeys)&&workers.get("builder").station===builderStation','Current action changes do not move an assignment to a different building');
-  check('areas[0].workstreams.some(s=>s.label==="Build operations")&&areas[0].workstreams.some(s=>s.label==="Review operations")','Buildings carry recorded assignment labels');
+  run('sync(streamFixture);var streamKeys=areas[0].workstreams.map(s=>s.key),builderStation=workers.get("builder").station;streamFixture.sessions[1].current_action="Write code";sync(streamFixture);renderRail();choose("builder")');
+  check('JSON.stringify(areas[0].workstreams.map(s=>s.key))===JSON.stringify(streamKeys)&&workers.get("builder").station!==builderStation&&workers.get("builder").phaseName==="build"','A changed recorded phase moves the worker while phase buildings stay stable');
+  check('JSON.stringify(streamKeys)===JSON.stringify(["research","build","review","standby"])&&detail.innerHTML.includes("Build operations")','Buildings carry truthful phase labels while the inspector retains the assignment');
   check('cityWorkers().every(w=>w.id!=="done-worker")&&picker.innerHTML.includes("done-worker")&&rail.innerHTML.includes("done-worker")','Completed workers leave the active city but remain selectable in project history');
   run('sync({sessions:streamFixture.sessions.slice().reverse()})');
   check('areas.length===1&&areas[0].sessions.length===1&&areas[0].key===workers.get("builder").area.key','Reordered SSE preserves the canonical project district and root relationship');
+});
+regression('Recorded semantic work selects a truthful phase destination',()=>{
+  check(`JSON.stringify([
+    {status:'working',working_on:{observation_id:'read'},trace:{observations:[{id:'read',kind:'tool',status:'running',tool:'functions.exec',summary:'Searching project files'}]}},
+    {status:'working',working_on:{observation_id:'edit'},trace:{observations:[{id:'edit',kind:'file',status:'running',summary:'Editing observatory.html'}]}},
+    {status:'working',working_on:{observation_id:'test'},trace:{observations:[{id:'test',kind:'test',status:'running',summary:'Running automated tests'}]}},
+    {status:'working',approval_pending:true},
+    {status:'waiting'}].map(row=>phaseFor(row)))===JSON.stringify(['research','build','review','review','standby'])`, 'Explicit semantic evidence and operational state select the city phase');
+  check(`phaseFor({id:'current-owner',status:'working',working_on:{observation_id:'current'},trace:{observations:[{id:'current',session_id:'current-owner',kind:'step',status:'working',summary:'Implement phase routing'},{id:'old-delegation',session_id:'current-owner',kind:'delegation',status:'working',summary:'Earlier research'}]}})==='build'`, 'A historical open delegation cannot override the explicit current work node');
+  run(`sync({sessions:[{id:'phase-worker',cwd:'C:/Phases',status:'working',working_on:{observation_id:'read'},trace:{observations:[{id:'read',session_id:'phase-worker',kind:'tool',status:'running',tool:'functions.exec',summary:'Searching project files'}]}}]});var phaseStart={x:workers.get('phase-worker').x,z:workers.get('phase-worker').z};sync({sessions:[{id:'phase-worker',cwd:'C:/Phases',status:'working',working_on:{observation_id:'test'},trace:{observations:[{id:'read',session_id:'phase-worker',kind:'tool',status:'completed',tool:'functions.exec',summary:'Searching project files'},{id:'test',session_id:'phase-worker',kind:'test',status:'running',summary:'Running automated tests'}]}}]});var phaseWalker=workers.get('phase-worker')`);
+  check(`phaseWalker.phaseName==='review'&&phaseWalker.route.length>0&&phaseWalker.x===phaseStart.x&&phaseWalker.z===phaseStart.z`, 'A recorded phase change starts bounded travel without teleporting');
+  check(`areas[0].workstreams.some(stream=>stream.label==='Research')&&areas[0].workstreams.some(stream=>stream.label==='Review')`, 'District buildings name real work phases rather than insertion-order assignments');
+});
+regression('Live event trails baseline history, deduplicate refreshes, and stay bounded',()=>{
+  run(`effects=[];observationMemory.clear();var eventState={sessions:[{id:'events',cwd:'C:/Events',status:'working',working_on:{observation_id:'step'},trace:{observations:[{id:'step',session_id:'events',kind:'step',status:'working',summary:'Implement city movement'}]}}]};sync(eventState)`);
+  check(`effects.length===0`, 'Initial trace history is baselined instead of replayed');
+  run(`eventState.sessions[0].trace.observations.push({id:'tool',session_id:'events',kind:'tool',call_id:'call-1',status:'running',summary:'Running command'},{id:'file',session_id:'events',kind:'file',call_id:'call-1',status:'running',summary:'Editing observatory.html'});sync(eventState);var firstEffectCount=effects.length;sync(eventState)`);
+  check(`firstEffectCount===1&&effects.length===1&&effects[0].kind==='file'`, 'One strongest visual event represents a tool call and its evidence without duplicate refresh effects');
+  run(`eventState.sessions[0].trace.observations.find(item=>item.id==='tool').status='completed';eventState.sessions[0].trace.observations.find(item=>item.id==='tool').end_timestamp='done';eventState.sessions[0].trace.observations.push({id:'result',session_id:'events',kind:'result',call_id:'call-1',status:'completed',summary:'Command completed'});sync(eventState)`);
+  check(`effects.length===2&&effects.at(-1).kind==='result'`, 'A meaningful observation completion emits one result trail');
+  run(`effects=[];eventState.sessions[0].trace.observations=[];sync(eventState);eventState.sessions[0].trace.observations=[{id:'result',session_id:'events',kind:'result',call_id:'call-1',status:'completed',summary:'Command completed'}];sync(eventState)`);
+  check(`effects.length===0`, 'Trace contraction and restoration cannot replay old history as a live event');
+  run(`for(let i=0;i<40;i++){eventState.sessions[0].trace.observations.push({id:'event-'+i,session_id:'events',kind:'delegation',status:'working',summary:'Delegate '+i});sync(eventState)}`);
+  check(`effects.length===24`, 'Live visual effects use a fixed memory bound');
+});
+regression('Delegation trails use the child linked to the recorded delegation',()=>{
+  run(`effects=[];observationMemory.clear();var delegationState={sessions:[
+    {id:'parent',cwd:'C:/Delegation',status:'working',working_on:{observation_id:'step'},trace:{observations:[{id:'step',session_id:'parent',kind:'step',status:'working',summary:'Coordinate agents'}]}},
+    {id:'older-child',parent:'parent',status:'working',task:'First task',trace:{observations:[{id:'older-agent',parent_id:'older-delegation',session_id:'older-child',kind:'agent',status:'working',summary:'First task'}]}},
+    {id:'new-child',parent:'parent',status:'working',task:'Second task',trace:{observations:[{id:'new-agent',parent_id:'new-delegation',session_id:'new-child',kind:'agent',status:'working',summary:'Second task'}]}}]};sync(delegationState);delegationState.sessions[0].trace.observations.push({id:'new-delegation',session_id:'parent',kind:'delegation',status:'working',summary:'Second task'});sync(delegationState);var delegationEffect=effects.at(-1),newChild=workers.get('new-child')`);
+  check(`delegationEffect.kind==='delegation'&&delegationEffect.to.x===newChild.x&&delegationEffect.to.z===newChild.z`, 'A delegation trail cannot point to an unrelated sibling');
+});
+regression('The final expired event trail is cleared from the visible canvas',()=>{
+  run(`sync({sessions:[{id:'quiet-effect',cwd:'C:/Effects',status:'idle'}]});effects=[{kind:'tool',from:{x:0,z:0},to:{x:1,z:1},startedAt:0}];paused=false;document.hidden=false;document.focused=true;var expiryDraws=0,savedExpiryScene=drawScene;drawScene=ms=>{expiryDraws++;savedExpiryScene(ms)};frame(effectLifetime+1);var expiryResult={draws:expiryDraws,remaining:effects.length};drawScene=savedExpiryScene`);
+  check(`expiryResult.draws===1&&expiryResult.remaining===0`, 'Expiry paints one clean frame instead of leaving a stale trail');
+});
+regression('Effect expiry cannot race the frame throttle and strand painted pixels',()=>{
+  run(`sync({sessions:[{id:'expiry-race',cwd:'C:/Effects',status:'idle'}]});effects=[{kind:'tool',from:{x:0,z:0},to:{x:1,z:1},startedAt:0}];paused=false;document.hidden=false;document.focused=true;renderedAt=1590;var raceDraws=0,savedRaceScene=drawScene,savedNow=performance.now;drawScene=ms=>{raceDraws++;savedRaceScene(ms)};performance.now=()=>1601;frame(1599);var raceScheduled=animationFrame!==0`);
+  pumpFrames(1630);
+  run(`var raceResult={scheduled:raceScheduled,draws:raceDraws,remaining:effects.length};drawScene=savedRaceScene;performance.now=savedNow`);
+  check(`raceResult.scheduled&&raceResult.draws===1&&raceResult.remaining===0`, 'An expired effect remains scheduled until one clean frame removes it');
+});
+regression('Bounded effect memory rejects timestamped history after identity eviction',()=>{
+  run(`effects=[];observationMemory.clear();var historyState={sessions:[{id:'history',cwd:'C:/History',status:'idle',trace:{observations:[{id:'old-result',session_id:'history',kind:'result',status:'completed',timestamp:'2026-01-01T00:00:00.000Z',summary:'Old result'}]}}]};sync(historyState);for(let i=1;i<=241;i++){historyState.sessions[0].trace.observations=[{id:'new-'+i,session_id:'history',kind:'result',status:'completed',timestamp:new Date(Date.UTC(2026,0,2,0,0,i)).toISOString(),summary:'New result'}];sync(historyState)}effects=[];historyState.sessions[0].trace.observations=[{id:'old-result',session_id:'history',kind:'result',status:'completed',timestamp:'2026-01-01T00:00:00.000Z',summary:'Old result'}];sync(historyState)`);
+  check(`effects.length===0`, 'A high-water timestamp prevents evicted history from replaying as current work');
 });
 regression('Observatory inspector bounds history and groups evidence',()=>{
   run(`sync({sessions:[{id:'inspector',cwd:'C:/Inspect',status:'working',working_on:{summary:'Run checks',observation_id:'now',status:'working'},work_breakdown:[{id:'root-work',kind:'prompt',summary:'Audit UI',session_id:'inspector',status:'working'},{id:'now',parent_id:'root-work',kind:'step',summary:'Run checks',session_id:'worker-1',status:'working'},{id:'child',parent_id:'now',kind:'step',summary:'Review results',session_id:'worker-3',status:'waiting'},{id:'old',parent_id:'root-work',kind:'outcome',summary:'Old result',session_id:'worker-2',status:'completed'}],trace:{observations:[{id:'approval',kind:'approval',summary:'Needs permission'},{id:'test',kind:'test',summary:'node tests',exit_code:0},{id:'file',kind:'file',summary:'observatory.html'},{id:'tool',kind:'tool',tool:'node'},{id:'metric',kind:'metric',summary:'33ms'}]}}]});choose('inspector')`);
