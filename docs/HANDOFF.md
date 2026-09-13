@@ -45,12 +45,14 @@ details that should not be published.
 
 ## Pending verification
 
-- Active, foreground Observatory rendering performance is not yet verified. Attempt 05
-  reached operator-confirmed foreground/motion readiness but the checker then received an
-  opaque WebView script result and failed before sampling. The checker now preserves
-  `ExecuteScriptWithResultAsync` success/exception/result and document/navigation context,
-  and treats unavailable probes as an explicit failure. No run has used that correction.
-  A future visible run requires fresh explicit authorization and must not retry itself.
+- Active, foreground Observatory rendering performance is not yet verified. Authorized
+  attempt 06 used the corrected browser diagnostics and proved a stable Observatory
+  document, foreground native window, focused browser, and active motion. It stopped before
+  sampling because the native guard reported `native_occlusion:intersecting_window`.
+  Cleanup passed with zero owned processes, listeners, or new fixture/cache directories.
+  A read-only post-run audit found persistent full-screen NVIDIA Overlay windows, including
+  a topmost transparent layered window, but the attempt did not record the offending HWND;
+  treat that as the leading explanation, not proof. No attempt 07 is authorized.
 - Live Send and real provider launches remain deliberate manual tests and require separate
   confirmation.
 - Pixel-perfect visual polish remains deferred to a later design pass.

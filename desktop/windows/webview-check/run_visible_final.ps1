@@ -2,7 +2,7 @@ $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..')).Path
 $checkDir = Join-Path $repo 'desktop\windows\webview-check'
 $publish = Join-Path $checkDir 'bin\Release\net8.0-windows\win-x64\publish'
-$prefix = Join-Path $checkDir 'visible-05'
+$prefix = Join-Path $checkDir 'visible-06'
 if (Test-Path "$prefix-execution.json") { throw 'Final visible attempt already recorded; do not repeat.' }
 if ((Test-Path "$prefix.stdout.json") -or (Test-Path "$prefix.stderr.txt")) { throw 'Final visible output already exists; do not repeat.' }
 $manifestPath = Join-Path $repo 'desktop\windows\bundle-manifest.json'
@@ -94,7 +94,7 @@ $postflight = [ordered]@{
     new_fixture_directories = @(Get-ChildItem -LiteralPath $tempRoot -Directory -Filter 'agent-foundry-webview-check-*' | Where-Object FullName -notin $fixturesBefore | Select-Object -ExpandProperty FullName)
     new_cache_directories = @(Get-ChildItem -LiteralPath $cacheRoot -Directory | Where-Object FullName -notin $cachesBefore | Select-Object -ExpandProperty FullName)
     remaining_older_cache_ids = @(Get-ChildItem -LiteralPath $cacheRoot -Directory | Select-Object -ExpandProperty Name)
-    cleanup = $cleanup; visible05_exit_code = $execution.exit_code
+    cleanup = $cleanup; visible06_exit_code = $execution.exit_code
     active_measurement_valid = $measurement.active_measurement_valid; automatic_retry = $false
 }
 $postflight | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath "$prefix-postflight.json"
