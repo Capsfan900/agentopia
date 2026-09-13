@@ -81,10 +81,10 @@ Live statuses are `working`, `tool`, `thinking`, `approval`, `idle`, `completed`
 Tool observations may use `running`. Missing intent or provenance is labeled as a fallback; it is never
 invented. An unchanged Codex rollout still recorded in progress becomes stale/idle after 30 minutes.
 
-The views derive project identity from the recorded root session `cwd`. Descendants inherit that root.
+The views derive project identity from the recorded root session `cwd`. Descendants inherit that root. Root sessions without a recorded `cwd` remain separate sessions but share one collapsed `Unknown project` group in the Observatory.
 Windows drive/UNC paths normalize extended prefixes, slash direction, and case. POSIX paths remain
-case-sensitive. Empty/unknown paths remain separate. This grouping is a browser projection; the payload keeps
-the recorded path.
+case-sensitive. Empty/unknown paths remain explicit and are never guessed. This grouping is a browser
+projection; the payload keeps the recorded path and session identity.
 
 ### Semantic trace
 

@@ -276,6 +276,16 @@ regression('Terminal turn state folds history and projects sort by attention',()
   check(`JSON.stringify(orderedCityProjects.map(group=>projectName(group.cwd)))===JSON.stringify(['Review','Active','Archive','Zeta'])`, 'Observatory rail prioritizes approval, active, then inactive projects');
   check(`rail.innerHTML.includes('History (1)')&&cityWorkers().every(worker=>worker.id!=='done-project')`, 'Terminal root remains selectable in folded history and leaves the active city');
 });
+regression('Unknown roots share one collapsed project without losing sessions',()=>{
+  run(`sync({sessions:[
+    {id:'unknown-a',status:'working',prompt_context:{summary:'First private purpose',text:'First private full prompt'}},
+    {id:'unknown-b',status:'working',task:'Second purpose',missing_log:true},
+    {id:'unknown-child',parent:'unknown-b',status:'working',task:'Inspect adapter'}]});renderRail();var unknownProjects=activeRoots()`);
+  check(`unknownProjects.length===1&&unknownProjects[0].key==='unknown'&&unknownProjects[0].sessions.length===2&&unknownProjects[0].agents.length===3&&unknownProjects[0].active_agents===1`, 'Cwd-less roots remain distinct sessions and are not counted as child agents');
+  check(`rail.innerHTML.includes('data-rail-key="project:unknown"')&&!rail.innerHTML.includes('data-rail-key="project:unknown" open')`, 'The unified Unknown project starts collapsed');
+  run(`choose('unknown-b');var unknownRootDetail=detail.innerHTML;choose('unknown-child');var unknownChildDetail=detail.innerHTML`);
+  check(`!unknownRootDetail.includes('First private')&&!unknownChildDetail.includes('First private')&&unknownRootDetail.includes('Second purpose')&&unknownChildDetail.includes('Second purpose')`, 'Each unknown session keeps its own prompt context inside the shared district');
+});
 regression('Inspector states current work once and shows only distinct context',()=>{
   sandbox.repeatedSummary='Implement the deliberately long current summary without repeating it anywhere in the inspector';
   run(`sync({sessions:[{id:'dedupe',cwd:'C:/Dedupe',status:'working',task:'Audit interface',prompt_context:{summary:'Audit interface'},working_on:{summary:repeatedSummary,observation_id:'now',status:'working',task_path:['Audit interface',repeatedSummary]},work_breakdown:[{id:'prompt',kind:'prompt',summary:'Audit interface'},{id:'now',parent_id:'prompt',kind:'step',summary:repeatedSummary,session_id:'dedupe',status:'working'}]}]});choose('dedupe')`);
