@@ -85,6 +85,8 @@ The views derive project identity from the recorded root session `cwd`. Descenda
 Windows drive/UNC paths normalize extended prefixes, slash direction, and case. POSIX paths remain
 case-sensitive. Empty/unknown paths remain explicit and are never guessed. This grouping is a browser
 projection; the payload keeps the recorded path and session identity.
+Codex lock-only records remain available in the collapsed project rail with `missing_log: true`, but do not
+create city workers or claim that initialization is still progressing.
 
 ### Semantic trace
 

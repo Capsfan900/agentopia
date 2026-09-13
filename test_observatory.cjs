@@ -283,8 +283,15 @@ regression('Unknown roots share one collapsed project without losing sessions',(
     {id:'unknown-child',parent:'unknown-b',status:'working',task:'Inspect adapter'}]});renderRail();var unknownProjects=activeRoots()`);
   check(`unknownProjects.length===1&&unknownProjects[0].key==='unknown'&&unknownProjects[0].sessions.length===2&&unknownProjects[0].agents.length===3&&unknownProjects[0].active_agents===1`, 'Cwd-less roots remain distinct sessions and are not counted as child agents');
   check(`rail.innerHTML.includes('data-rail-key="project:unknown"')&&!rail.innerHTML.includes('data-rail-key="project:unknown" open')`, 'The unified Unknown project starts collapsed');
+  check(`cityWorkers().every(worker=>worker.id!=='unknown-b')`, 'A metadata-less lock record stays inspectable but does not become a city worker');
   run(`choose('unknown-b');var unknownRootDetail=detail.innerHTML;choose('unknown-child');var unknownChildDetail=detail.innerHTML`);
   check(`!unknownRootDetail.includes('First private')&&!unknownChildDetail.includes('First private')&&unknownRootDetail.includes('Second purpose')&&unknownChildDetail.includes('Second purpose')`, 'Each unknown session keeps its own prompt context inside the shared district');
+});
+regression('Metadata-less records do not reserve invisible city seats',()=>{
+  run(`var unavailable=Array.from({length:30},(_,i)=>({id:'missing-'+String(i).padStart(2,'0'),status:'idle',missing_log:true}));sync({sessions:[...unavailable,{id:'real-worker',status:'idle'}]});var realSeat=workers.get('real-worker').seat,retainedUnavailable=unavailable.every(row=>workers.has(row.id));sync({sessions:[{id:'real-worker',status:'idle'}]});var restoredSeat=workers.get('real-worker').seat`);
+  check(`realSeat===0&&restoredSeat===0&&retainedUnavailable`, 'Diagnostic records remain selectable without displacing a real worker now or later');
+  run(`sync({sessions:[{id:'recovering',status:'idle',missing_log:true},{id:'occupied',status:'idle'}]});sync({sessions:[{id:'recovering',status:'idle'},{id:'occupied',status:'idle'}]});var recovered=workers.get('recovering'),occupied=workers.get('occupied')`);
+  check(`recovered.seat!==occupied.seat&&Math.hypot(recovered.targetX-occupied.targetX,recovered.targetZ-occupied.targetZ)>0`, 'A record gaining metadata cannot reuse its placeholder seat over a visible worker');
 });
 regression('Inspector states current work once and shows only distinct context',()=>{
   sandbox.repeatedSummary='Implement the deliberately long current summary without repeating it anywhere in the inspector';

@@ -90,6 +90,17 @@ class ActivitySummaryTests(unittest.TestCase):
                 store.session_files(); store.session_files(); store.signature()
             self.assertEqual(scan.call_count, 1)
 
+    def test_lock_only_record_does_not_claim_it_is_still_starting(self):
+        with tempfile.TemporaryDirectory() as folder:
+            home = Path(folder)
+            (home / "sessions").mkdir()
+            locks = home / "thread-writer-locks"
+            locks.mkdir()
+            (locks / f"{self.ROOT_ID}.lock").touch()
+            session = CodexStore(home).snapshot()["sessions"][0]
+            self.assertTrue(session["missing_log"])
+            self.assertEqual(session["current_action"], "Codex session metadata is unavailable")
+
     def test_harness_provider_model_and_account_scopes_are_independent(self):
         rows = self.rows({"type": "turn_context", "payload": {"model": "unrelated-model-name"}})
         rows[0]["payload"]["model_provider"] = "openrouter"

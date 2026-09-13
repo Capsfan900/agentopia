@@ -1133,7 +1133,7 @@ class CodexStore:
                     "title": compact_text(title, 160), "task": task,
                     "cwd": record.get("cwd", ""), "model": record.get("model", ""),
                     "effort": record.get("reasoning_effort", ""), "status": "idle",
-                    "current_action": "Session starting; activity log is not available yet",
+                    "current_action": "Codex session metadata is unavailable",
                     "recent_activity": [], "age_seconds": 0, "missing_log": True,
                     "_semantic": self.semantic_trace(path or self.sessions_dir / "missing", thread_id, task),
                     "_session_timestamp": "",

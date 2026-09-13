@@ -188,7 +188,7 @@ function phaseFor(agent,previous=''){
   return previous||'build';
 }
 function terminalStatus(status){return status==='completed'||status==='failed'}
-function cityWorkers(){return [...workers.values()].filter(w=>!terminalStatus(statusFor(w)))}
+function cityWorkers(){return [...workers.values()].filter(w=>!w.missing_log&&!terminalStatus(statusFor(w)))}
 function activeAreas(){const visible=new Set(cityWorkers().map(w=>w.area.key));return areas.filter(area=>visible.has(area.key))}
 function sync(next){
   const agents=Array.isArray(next.sessions)?next.sessions.filter(a=>a&&typeof a.id==='string'):[];
@@ -199,14 +199,14 @@ function sync(next){
   });
   const nextWorkers=new Map();
   for(const area of areas){
-    const group=area.agents.filter(agent=>!terminalStatus(statusFor(agent)));
+    const group=area.agents.filter(agent=>!agent.missing_log&&!terminalStatus(statusFor(agent)));
     area.workstreams=stations.map((station,slot)=>({key:station.name.toLowerCase(),label:station.name,slot,x:station.x,z:station.z}));
     for(const stream of area.workstreams){
       const k=stream.slot,station=stations[k],members=group.filter(agent=>phaseFor(agent,workers.get(agent.id)?.phaseName)===stream.key),used=new Set();
-      for(const agent of members){const old=workers.get(agent.id);if(old?.phaseName===stream.key&&old.area.key===area.key)used.add(old.seat)}
+      for(const agent of members){const old=workers.get(agent.id);if(old?.station===k&&old.phaseName===stream.key&&old.area.key===area.key)used.add(old.seat)}
       for(const agent of members){
-        const old=workers.get(agent.id);let seat=old?.phaseName===stream.key&&old.area.key===area.key?old.seat:0;
-        if(!(old?.phaseName===stream.key&&old.area.key===area.key)){while(used.has(seat))seat++;used.add(seat)}
+        const old=workers.get(agent.id),reuses=old?.station===k&&old.phaseName===stream.key&&old.area.key===area.key;let seat=reuses?old.seat:0;
+        if(!reuses){while(used.has(seat))seat++;used.add(seat)}
         const targetX=area.x+station.x+(seat%3-1)*1.25,targetZ=area.z+station.z+Math.floor(seat/3)*1.25;
         const w={...agent,area,station:k,phaseName:stream.key,seat,targetX,targetZ,x:old?.x??targetX,z:old?.z??targetZ,route:old?.route||[],phase:(hash(agent.id)%628)/100};
         if(!old||old.targetX!==targetX||old.targetZ!==targetZ){
@@ -219,7 +219,7 @@ function sync(next){
         nextWorkers.set(w.id,w);
       }
     }
-    for(const agent of area.agents.filter(agent=>terminalStatus(statusFor(agent)))){const old=workers.get(agent.id);nextWorkers.set(agent.id,{...agent,area,station:-1,phaseName:old?.phaseName||'standby',seat:0,targetX:old?.targetX??area.x,targetZ:old?.targetZ??area.z,x:old?.x??area.x,z:old?.z??area.z,route:[],phase:(hash(agent.id)%628)/100})}
+    for(const agent of area.agents.filter(agent=>agent.missing_log||terminalStatus(statusFor(agent)))){const old=workers.get(agent.id);nextWorkers.set(agent.id,{...agent,area,station:-1,phaseName:old?.phaseName||'standby',seat:0,targetX:old?.targetX??area.x,targetZ:old?.targetZ??area.z,x:old?.x??area.x,z:old?.z??area.z,route:[],phase:(hash(agent.id)%628)/100})}
   }
   workers=nextWorkers;captureEffects(agents);state=next;staticDirty=true;
   if(!workers.has(selected))selected=[...workers.values()].find(w=>statusFor(w)==='approval')?.id||[...workers.values()].find(w=>active(w.status))?.id||workers.keys().next().value||'';
