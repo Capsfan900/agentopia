@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Agent Foundry · Observatory</title><link rel="stylesheet" href="/foundry.css">
+<style>
+html,body{width:100%;height:100%;overflow:hidden}body{display:flex;flex-direction:column}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.observatory-layout{flex:1;min-height:0;display:grid;grid-template-columns:252px minmax(0,1fr) 340px}.observatory-rail{display:flex;flex-direction:column;min-height:0;background:var(--pane);border-right:1px solid var(--n-800)}.rail-controls{padding:14px;border-bottom:1px solid var(--n-900)}.rail-controls h1{font-size:13px;margin:0 0 12px}.rail-controls select{width:100%;font-size:12px;min-width:0}.controls{display:flex;gap:7px;margin:10px 0}.controls button{flex:1;font-size:11px;padding:5px}.live{display:flex;align-items:center;gap:6px;font:11px var(--mono);color:var(--n-500)}.dot{width:5px;height:5px;background:var(--accent);border-radius:50%}.offline .dot{background:var(--n-500)}
+.session-rail{flex:1;min-height:0;overflow:auto;padding:8px}.session-rail button{width:100%;display:block;text-align:left;white-space:normal;height:auto;background:transparent;border:0;font:12px/1.5 var(--font);padding:7px 9px}.session-rail button.active{background:var(--n-900);box-shadow:inset 2px 0 var(--accent)}.session-rail details{margin:4px 0;padding:4px 0}.session-rail>details+details{border-top:1px solid var(--n-800)}.session-rail summary{font-size:12px;padding:6px 8px;overflow-wrap:anywhere}.session-rail small{display:block;color:var(--n-500);font:10px/1.6 var(--mono);margin-top:4px}.session-rail .project-active>summary{color:var(--accent-200)}.session-rail .agent-entry{padding-left:20px;color:var(--n-400)}.session-rail .session-history{border-left:1px solid var(--n-800);margin-left:7px}
+.world-cell{position:relative;min-width:0;min-height:0;background:var(--bg-deep);overflow:hidden}canvas{display:block;width:100%;height:100%;cursor:grab;touch-action:none}canvas.dragging{cursor:grabbing}.city-caption,.city-coordinate,.hint,.legend{position:absolute;pointer-events:none;color:var(--n-500);font:10px/1.6 var(--mono)}.city-caption{top:24px;left:24px}.city-caption span{letter-spacing:.1em}.city-caption h2{font:500 22px var(--font);color:var(--n-300);margin:6px 0}.city-caption em{font-style:normal}.hint{left:24px;top:111px}.city-coordinate{right:18px;bottom:58px;text-align:right}.legend{bottom:16px;left:16px;right:16px;display:flex;flex-wrap:wrap;gap:12px;align-items:center}.legend span{display:flex;gap:5px;align-items:center}.legend i{height:5px;width:5px;border-radius:50%}
+.inspector-pane{min-width:0;min-height:0;display:flex;flex-direction:column;background:var(--bg);border-left:1px solid var(--n-800)}.detail{min-height:0;flex:1;overflow:auto;padding:22px 20px}.detail.empty{color:var(--n-500);font-size:13px}.detail-head{display:flex;align-items:flex-start;gap:8px;padding-bottom:16px;border-bottom:1px solid var(--n-800)}.detail-head>div{min-width:0}.worker-name{font-size:18px;font-weight:500;overflow-wrap:anywhere}.meta{font:11px/1.6 var(--mono);color:var(--n-500);margin-top:6px;overflow-wrap:anywhere}.status{font:10px/1.6 var(--mono);padding:2px 6px;border:1px solid var(--n-700);border-radius:99px;color:var(--n-400)}.status.approval,.status.tool,.status.working{color:var(--accent-200);border-color:var(--accent-700)}.status.failed{color:#d98a8a}.field{margin-top:22px}.field label{font-size:12px;color:var(--n-400);margin:0 0 7px}.field strong{font-size:14px;font-weight:500;display:block}.field div,.field ul{font-size:13px;line-height:1.65;overflow-wrap:anywhere}.field details{font-size:12px}.field section{padding:10px 0;border-bottom:1px solid var(--n-900)}.field li{margin:8px 0}.field .status{border:0;padding:0;color:var(--n-500);display:block}.detail .fact-list{grid-template-columns:72px minmax(0,1fr)}.trail span{display:block;padding:8px 0;font:11px/1.6 var(--mono);color:var(--n-500);overflow-wrap:anywhere}.approval-note{padding:12px;background:var(--accent-900);border:1px solid var(--accent-700);border-radius:var(--r-md);color:var(--accent-200);font-size:13px}.action-menu{display:flex;flex-wrap:wrap;gap:6px;border-top:1px solid var(--n-800);padding:12px;flex:none}.action-menu[hidden]{display:none}.action-menu button{font-size:11px;padding:5px 8px}.current-work{border-left:2px solid var(--accent);padding-left:7px}
+@media(max-width:1100px){.observatory-layout{grid-template-columns:220px minmax(0,1fr) 300px}.city-caption h2{font-size:19px}.city-caption,.hint{left:16px}.city-coordinate{display:none}}
+@media(max-width:760px){.observatory-layout{grid-template-columns:180px minmax(0,1fr);grid-template-rows:minmax(280px,55vh) minmax(240px,1fr);overflow:auto}.observatory-rail{grid-row:1/3}.inspector-pane{grid-column:2;border-top:1px solid var(--n-800)}.city-caption,.hint,.city-coordinate{display:none}.legend{gap:8px;font-size:9px}.controls{flex-direction:column}}
+</style>
+</head>
+<body>
+<header class="app-header"><span class="app-brand">Agent Foundry</span><span class="page-name">Observatory</span><nav class="app-nav" aria-label="Agent Foundry"><a href="/">Operations</a><a href="/observatory">Observatory</a><a href="/library">Library</a><a href="/settings">Settings</a><button id="session-actions">Session actions…</button><button id="help">Help</button></nav></header>
+<main class="observatory-layout">
+<aside class="observatory-rail"><div class="rail-controls"><h1>Projects &amp; agents</h1><label class="sr-only" for="agent-picker">Select agent or session</label><select id="agent-picker" aria-label="Select agent or session"><option>Waiting for agents…</option></select><div class="controls"><button id="fit" type="button">Fit view</button><button id="motion" type="button" aria-pressed="false">Pause motion</button></div><div class="live offline" id="connection"><span class="dot"></span><span>connecting</span></div></div><nav class="session-rail" id="session-rail" aria-label="Projects, sessions, agents, and history"></nav></aside>
+<div class="world-cell"><canvas id="world" aria-label="Agent Foundry Observatory showing projects, sessions, and agents"></canvas><div class="city-caption"><span>AGENT FOUNDRY / OBSERVATORY</span><h2>Every task has a place.</h2><em>Live projects · recorded work</em></div><div class="city-coordinate">CITY GRID / ORTHOGRAPHIC<br>Movement illustrates recorded work</div><div class="hint">Drag to pan · wheel to zoom · select a worker</div><div class="legend" aria-hidden="true"><span><i style="background:#e4e7f5"></i>working</span><span><i style="background:#b5abfc"></i>tool</span><span><i style="background:#75798c"></i>idle</span><span><i style="background:#595d6c"></i>done</span></div></div>
+<div class="inspector-pane"><aside class="detail empty" id="detail">Select a worker to inspect its current task.</aside><div class="action-menu" id="action-menu" hidden></div></div>
+</main>
+<script>
+const canvas=document.querySelector('#world'),ctx=canvas.getContext('2d'),picker=document.querySelector('#agent-picker'),detail=document.querySelector('#detail'),connection=document.querySelector('#connection');
+const camera={x:0,y:0,zoom:1},inspectorOpen=new Set();let state=null,workers=new Map(),areas=[],selected='',hits=[],dragging=false,moved=false,last={x:0,y:0},firstFit=true;
+const colors={working:'#e4e7f5',tool:'#b5abfc',thinking:'#b5abfc',idle:'#75798c',waiting:'#9397ab',stale:'#595d6c',completed:'#595d6c',interrupted:'#d98a8a',failed:'#d98a8a',approval:'#9184d9',open:'#75798c'};
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),active=s=>['working','tool','thinking'].includes(s),short=(s,n=46)=>String(s||'').length>n?String(s).slice(0,n-1)+'…':String(s||''),textKey=s=>String(s??'').trim().replace(/\s+/g,' ').toLowerCase(),projectName=cwd=>String(cwd||'Unknown project').split(/[\\/]/).filter(Boolean).at(-1)||'Unknown project',workerName=w=>w.parent||!w.cwd?(w.nickname||w.name||w.id):projectName(w.cwd);
+function hash(value){let h=2166136261;for(const c of String(value)){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return h>>>0}
+function project(x,z,y=0){const scale=29*camera.zoom;return{x:canvas.clientWidth/2+camera.x+(x-z)*scale,y:canvas.clientHeight*.43+camera.y+(x+z)*scale*.48-y*scale}}
+function polygon(points,fill,stroke){ctx.beginPath();points.forEach((p,i)=>(i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)));ctx.closePath();ctx.fillStyle=fill;ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=1;ctx.stroke()}}
+function diamond(x,z,rx,rz,fill,stroke){polygon([project(x-rx,z),project(x,z-rz),project(x+rx,z),project(x,z+rz)],fill,stroke)}
+function cube(x,z,w,d,h,color,base=0){const a=project(x-w,z-d,h+base),b=project(x+w,z-d,h+base),c=project(x+w,z+d,h+base),e=project(x-w,z+d,h+base),b0=project(x+w,z-d,base),c0=project(x+w,z+d,base),e0=project(x-w,z+d,base);polygon([e,c,c0,e0],shade(color,-28));polygon([b,c,c0,b0],shade(color,-42));polygon([a,b,c,e],shade(color,12),'#ffffff16')}
+function shade(hex,amount){const n=parseInt(hex.slice(1),16),r=Math.max(0,Math.min(255,(n>>16)+amount)),g=Math.max(0,Math.min(255,((n>>8)&255)+amount)),b=Math.max(0,Math.min(255,(n&255)+amount));return`rgb(${r},${g},${b})`}
+function rootFor(agent,byId){const path=[],positions=new Map();while(agent?.parent&&byId.has(agent.parent)){if(positions.has(agent.id)){const cycle=path.slice(positions.get(agent.id));return cycle.sort((a,b)=>a.id.localeCompare(b.id))[0]}positions.set(agent.id,path.length);path.push(agent);agent=byId.get(agent.parent)}return agent}
+function updatePicker(){const value=selected,items=[...workers.values()],html=items.length?items.map(w=>`<option value="${esc(w.id)}">${esc(short(workerName(w),24))} — ${esc(short(w.working_on?.summary||w.current_action||w.task||w.status,42))}</option>`).join(''):'<option>No tracked agents</option>';if(picker.innerHTML!==html)picker.innerHTML=html;picker.value=value}
+function updateDetail(){
+  const scroll=detail.scrollTop,focusKey=document.activeElement?.closest?.('details[data-semantic-key]')?.dataset.semanticKey;
+  for(const item of detail.querySelectorAll?.('details[data-semantic-key]')||[])item.open?inspectorOpen.add(item.dataset.semanticKey):inspectorOpen.delete(item.dataset.semanticKey);
+  const w=workers.get(selected);if(!w){detail.className='detail empty';detail.textContent='Select an agent to inspect recorded work.';return}
+  const status=statusFor(w),root=w.area?.root||w,prompt=w.prompt_context||root.prompt_context||{},purpose=prompt.summary||root.task||root.title||'No purpose recorded',action=w.working_on?.summary||w.current_action||({approval:'Approval required before work can continue',working:'Working on the assigned task',tool:'Using a tool',waiting:'Waiting for the next event',completed:'Task completed',failed:'Work stopped',idle:'Ready for an assignment',stale:'No recent activity'}[status]),rawAssignment=w.parent?(w.task||w.title||'No assignment recorded'):'',assignment=textKey(rawAssignment)===textKey(purpose)?'':rawAssignment,shown=new Set([purpose,assignment,action].filter(Boolean).map(textKey)),taskPath=(Array.isArray(w.working_on?.task_path)?w.working_on.task_path:[]).slice(0,12).filter(item=>{const key=textKey(item);return key&&!shown.has(key)&&(shown.add(key),true)}),activity=(Array.isArray(w.recent_activity)?w.recent_activity:[]).slice(-8).map(a=>`<span>${esc(short(a?.detail||a?.tool||'Recorded event',80))} · ${esc(a?.status||'unknown')}</span>`).join('');
+  detail.className='detail'+(status==='approval'?' approval':'');
+  detail.innerHTML=`<div class="detail-head"><div><div class="worker-name">${esc(workerName(w))}</div><div class="meta">${esc(projectName(root.cwd))} · ${esc(w.id.slice(0,8))} · ${w.parent?'agent':'session root'}</div></div><span class="status ${status}">${status}</span></div><div class="field"><label>Purpose${prompt.source?` · ${esc(short(prompt.source,80))}`:''}</label><div>${esc(short(purpose,260))}</div>${prompt.text?`<details data-semantic-key="${esc(w.id+':prompt')}"><summary>Full prompt</summary><div>${esc(String(prompt.text).slice(0,12000))}</div></details>`:''}</div>${assignment?`<div class="field"><label>Assignment</label><div>${esc(short(assignment,260))}</div></div>`:''}<div class="field"><label>${status==='stale'?'Last recorded work':'Working on now'}${w.working_on?.source?` · ${esc(short(w.working_on.source,80))}`:''}</label><strong>${esc(short(action,260))}</strong></div>${taskPath.length?`<div class="field"><label>Task path</label><div>${esc(taskPath.map(x=>short(x,160)).join(' › '))}</div></div>`:''}<div class="field"><label>Session identity</label><dl class="fact-list">${[['Harness',w.harness],['Provider',w.provider],['Model',w.model],['Effort',w.effort],...(w.role?[['Reported role',w.role]]:[])].map(([label,value])=>`<dt>${label}</dt><dd>${esc(value||'Unrecorded')}</dd>`).join('')}</dl></div>${semanticInspector(w)}${activity?`<details class="field" data-semantic-key="${esc(w.id+':raw')}"><summary>Raw activity</summary><div class="trail">${activity}</div></details>`:''}<div class="meta">${status==='stale'?'No recent activity. Showing the last recorded state.':'Latest record · '+Math.floor(Number(w.age_seconds)||0)+'s ago'} · ${esc(w.model||'model unknown')}${w.effort?' · '+esc(w.effort):''}</div>`;
+  if(status==='approval'){const note=document.createElement('p');note.className='approval-note';note.textContent=w.current_action||'Approval required before work can continue';detail.prepend(note)}
+  for(const item of detail.querySelectorAll?.('details[data-semantic-key]')||[]){item.open=inspectorOpen.has(item.dataset.semanticKey);if(item.dataset.semanticKey===focusKey)item.querySelector('summary')?.focus({preventScroll:true})}
+  detail.scrollTop=scroll;
+}
+function fitView(){camera.x=0;camera.y=0;const count=Math.max(1,areas.length),cols=Math.ceil(Math.sqrt(count)),rows=Math.ceil(count/cols);camera.zoom=Math.max(.45,Math.min(1.15,Math.min(canvas.clientWidth/(cols*360),canvas.clientHeight/(rows*240))));}
+function drawScene(ms){const width=canvas.clientWidth,height=canvas.clientHeight,dpr=Math.min(2,devicePixelRatio||1);if(canvas.width!==Math.round(width*dpr)||canvas.height!==Math.round(height*dpr)){canvas.width=Math.round(width*dpr);canvas.height=Math.round(height*dpr)}ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,width,height);const gradient=ctx.createRadialGradient(width*.5,height*.4,20,width*.5,height*.4,Math.max(width,height)*.7);gradient.addColorStop(0,'#1d1f30');gradient.addColorStop(1,'#0f101a');ctx.fillStyle=gradient;ctx.fillRect(0,0,width,height);drawGrid();activeAreas().slice().sort((a,b)=>(a.x+a.z)-(b.x+b.z)).forEach(drawArea);hits=[];const t=ms/1000,render=cityWorkers().map(w=>({w,pos:workerPosition(w,t)})).sort((a,b)=>(a.pos.x+a.pos.z)-(b.pos.x+b.pos.z));render.forEach(({w,pos})=>drawWorker(w,pos))}
+function choose(id){if(!workers.has(id))return;if(selected!==id)detail.scrollTop=0;selected=id;picker.value=id;updateDetail();menuTarget=id;renderActions();renderRail()}
+picker.addEventListener('change',()=>choose(picker.value));document.querySelector('#fit').addEventListener('click',()=>{fitView();drawScene(performance.now())});canvas.addEventListener('pointerdown',e=>{dragging=true;moved=false;last={x:e.clientX,y:e.clientY};canvas.classList.add('dragging');canvas.setPointerCapture(e.pointerId)});canvas.addEventListener('pointermove',e=>{if(!dragging)return;const dx=e.clientX-last.x,dy=e.clientY-last.y;if(Math.abs(dx)+Math.abs(dy)>2)moved=true;camera.x+=dx;camera.y+=dy;last={x:e.clientX,y:e.clientY}});canvas.addEventListener('pointerup',e=>{dragging=false;canvas.classList.remove('dragging');if(!moved){const r=canvas.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top,hit=[...hits].reverse().find(h=>x>=h.x&&x<=h.x+h.w&&y>=h.y&&y<=h.y+h.h);if(hit)choose(hit.id)}});canvas.addEventListener('wheel',e=>{e.preventDefault();camera.zoom=Math.max(.35,Math.min(2,camera.zoom*Math.exp(-e.deltaY*.001)))},{passive:false});
+// The world is an isometric Canvas scene; positions illustrate recorded work, not physical telemetry.
+const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
+colors.approval='#9184d9';let paused=reducedMotion.matches,hovered='';
+const stations=[{x:-2.8,z:-2.6,name:'Research',color:'#456781'},{x:2.8,z:-2.6,name:'Workshop',color:'#4d786c'},{x:2.8,z:2.6,name:'Review',color:'#806a43'},{x:-2.8,z:2.6,name:'Standby',color:'#5e5a76'}];
+function fitView(){
+  const visible=activeAreas();if(!visible.length){camera.x=0;camera.y=0;camera.zoom=1;return}
+  const points=[];
+  for(const area of visible)for(const x of [-6.2,6.2])for(const z of [-6.2,6.2])for(const y of [0,4.7])points.push([area.x+x,area.z+z,y]);
+  for(const w of cityWorkers())for(const y of [0,4.7])points.push([w.x,w.z,y],[w.targetX,w.targetZ,y]);
+  const xs=points.map(([x,z])=>(x-z)*29),ys=points.map(([x,z,y])=>(x+z)*13.92-y*29);
+  const minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys),width=canvas.clientWidth,height=canvas.clientHeight;
+  const left=width>760?260:24,right=24,top=height<450?100:150,bottom=60;
+  camera.zoom=Math.max(.001,Math.min(1.6,(width-left-right)/(maxX-minX),(Math.max(80,height-top-bottom))/(maxY-minY)));
+  camera.x=(left+width-right)/2-width/2-(minX+maxX)*camera.zoom/2;
+  camera.y=(top+height-bottom)/2-height*.43-(minY+maxY)*camera.zoom/2;
+};
+function drawWorker(w,pos){
+  const status=statusFor(w),color=colors[status]||colors.idle,chosen=w.id===selected||w.id===hovered;
+  const p=project(pos.x,pos.z,.22),scale=Math.max(.62,Math.min(1.6,camera.zoom*1.12)),seed=hash(w.id),variant=seed%4;
+  const animate=!paused&&!document.hidden&&document.hasFocus(),t=animate?performance.now()/1000:0;
+  const walking=w.moving&&animate,stride=walking?Math.sin(t*8+w.phase)*5:0,working=status==='working'||status==='tool';
+  const tap=animate&&working&&!walking?Math.sin(t*(status==='tool'?7:3)+w.phase)*1.4:0;
+  const slouch=status==='failed'?4:status==='stale'?2:0,coat=variant===0?24:variant===1?17:variant===2?21:16;
+  const cloth=['#49575b','#59616a','#465653','#646365'][variant],skin=['#c7a78b','#a77d62','#d4bba0','#876652'][(seed>>>4)%4];
+  const line=(points,stroke,width)=>{ctx.beginPath();points.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.strokeStyle=stroke;ctx.lineWidth=width;ctx.stroke()};
+  const shape=(points,fill,stroke)=>polygon(points.map(([x,y])=>({x,y})),fill,stroke);
+  ctx.save();ctx.translate(p.x,p.y);ctx.scale(scale,scale);ctx.lineCap='round';ctx.lineJoin='round';
+  ctx.fillStyle='#0008';ctx.beginPath();ctx.ellipse(2,3,11,4,0,0,Math.PI*2);ctx.fill();
+  if(chosen||status==='approval'){
+    ctx.strokeStyle=chosen?'#e7e5fe':color;ctx.lineWidth=1.2;ctx.beginPath();ctx.ellipse(0,1,15,6,0,0,Math.PI*2);ctx.stroke();
+  }
+  if(status==='approval'){
+    const pulse=animate?.75+Math.sin(t*2)*.1:.8;
+    shape([[-16,0],[-10,-72],[10,-72],[16,0]],'#9184d910');
+    ctx.globalAlpha=pulse;ctx.strokeStyle=color;ctx.lineWidth=1.5;ctx.beginPath();ctx.ellipse(0,-71,12,4,0,0,Math.PI*2);ctx.stroke();
+    shape([[0,-93],[10,-83],[0,-73],[-10,-83]],'#9184d920',color);
+    ctx.font='700 14px Segoe UI';ctx.textAlign='center';ctx.fillStyle='#e7e5fe';ctx.fillText('!',0,-78);ctx.globalAlpha=1;
+  }
+  if(status==='stale'){ctx.globalAlpha=.5;ctx.setLineDash([2,3]);ctx.strokeStyle=color;ctx.lineWidth=1;ctx.beginPath();ctx.ellipse(0,1,13,5,0,0,Math.PI*2);ctx.stroke();ctx.setLineDash([])}
+  // Long limbs and a small head keep human proportions even at district zoom.
+  for(const side of [-1,1]){
+    const foot=side*4+stride*side,knee=side*3-stride*side*.45;
+    line([[side*3,-22],[knee,-12],[foot,-2]],'#252e35',4.2);
+    line([[foot-1,-1],[foot+3,-1]],'#939d9d',4);line([[foot,-3],[foot+3,-3]],'#303b41',3);
+  }
+  if(variant===1||variant===3)shape([[-9,-39],[-13,-36],[-12,-24],[-7,-22]],'#26363b','#79888a');
+  shape([[-6,-42+slouch],[5,-42+slouch],[8,-35+slouch],[6,-42+coat],[-7,-42+coat],[-8,-35+slouch]],cloth,'#82908e66');
+  shape([[-5,-41+slouch],[0,-36+slouch],[4,-41+slouch],[2,-24],[-2,-24]],'#263239');
+  line([[0,-35+slouch],[0,-42+coat]],'#899794',.8);
+  line([[-6,-38+slouch],[-3,-37+slouch]],color,2);line([[3,-29],[6,-29]],color,1.4);
+  if(variant===0||variant===2){line([[-6,-42+coat],[-3,-42+coat+2]],'#a1afaa',1);line([[3,-42+coat],[6,-42+coat+2]],'#a1afaa',1)}
+  let left=[[-7,-38+slouch],[-10,-29+slouch],[-9-stride*.65,-23]],right=[[7,-38+slouch],[10,-29+slouch],[9+stride*.65,-23]];
+  if(!walking&&working){left=[[-7,-38],[-11,-30],[-2,-29+tap]];right=[[7,-38],[12,-31],[5,-29-tap]]}
+  if(!walking&&(status==='waiting'||status==='approval')){left=[[-7,-38],[-10,-30],[5,-31]];right=[[7,-38],[10,-29],[-4,-29]]}
+  if(!walking&&status==='completed')right=[[7,-38],[12,-42],[13,-49]];
+  if(!walking&&status==='failed'){left=[[-7,-34],[-11,-26],[-10,-20]];right=[[7,-34],[10,-29],[5,-42]]}
+  for(const arm of [left,right]){line(arm,cloth,4);line(arm.slice(-2),cloth,3.4);const hand=arm[2];line([[hand[0],hand[1]],[hand[0]+1,hand[1]+1]],skin,2.7)}
+  line([[0,-43+slouch],[0,-46+slouch]],skin,3);
+  ctx.fillStyle=skin;ctx.beginPath();ctx.ellipse(0,-49+slouch,3.8,4.8,.12,0,Math.PI*2);ctx.fill();
+  if(variant===2){shape([[-5,-45+slouch],[-5,-52+slouch],[-2,-55+slouch],[3,-54+slouch],[5,-47+slouch],[2,-50+slouch],[-2,-50+slouch]],'#303f43')}
+  else{shape([[-4,-50+slouch],[-3,-54+slouch],[2,-54+slouch],[4,-51+slouch]],variant===3?'#b8c5c1':'#26343a');if(variant===1)line([[-4,-51+slouch],[-5,-47+slouch]],'#9daead',2)}
+  line([[0,-49+slouch],[3,-49+slouch]],color,1.3);
+  if(!walking&&working){
+    shape([[-4,-33],[13,-31],[12,-22],[-5,-24]],'#9184d918','#9184d988');
+    line([[-1,-29],[8,-28]],color,1);line([[-1,-26],[status==='tool'?9:5,-25]],color,1);
+    if(status==='tool'){line([[14,-37],[18,-41]],color,2);ctx.strokeStyle=color;ctx.lineWidth=1;ctx.beginPath();ctx.arc(19,-42,2.5,0,Math.PI*1.6);ctx.stroke()}
+  }
+  const glyph={waiting:'Ⅱ',completed:'✓',failed:'×',idle:'○',stale:'…'}[status];
+  if(glyph){ctx.fillStyle=color;ctx.font='700 13px Segoe UI';ctx.textAlign='center';ctx.fillText(glyph,14,-52+slouch)}
+  ctx.restore();
+  const name=short(w.nickname||(w.parent?w.name:projectName(w.cwd))||w.id,19),label=status==='approval'?'! APPROVAL REQUIRED':walking?'IN TRANSIT · '+status.toUpperCase():short(w.working_on?.summary||status.toUpperCase(),28);
+  ctx.font='600 11px Segoe UI';const width=Math.max(ctx.measureText(name).width,ctx.measureText(label).width)+16,y=p.y-(status==='approval'?96:58)*scale-35;
+  ctx.fillStyle=chosen?'#2b2741f2':'#181a26ea';ctx.fillRect(p.x-width/2,y,width,31);ctx.fillStyle=color;ctx.fillRect(p.x-width/2,y,2,31);
+  ctx.textAlign='center';ctx.fillStyle='#e9e9ed';ctx.fillText(name,p.x,y+12);ctx.font='8px ui-monospace';ctx.fillStyle=color;ctx.fillText(label,p.x,y+24);
+  hits.push({id:w.id,x:p.x-width/2-3,y:y-3,w:width+6,h:p.y-y+12});
+};
+canvas.addEventListener('pointermove',e=>{if(dragging)return;const r=canvas.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top,id=[...hits].reverse().find(h=>x>=h.x&&x<=h.x+h.w&&y>=h.y&&y<=h.y+h.h)?.id||'';if(id!==hovered){hovered=id;paint()}});canvas.addEventListener('pointerleave',()=>{hovered='';paint()});canvas.addEventListener('pointercancel',()=>{dragging=false;canvas.classList.remove('dragging')});
+const motion=document.querySelector('#motion');function motionLabel(){motion.textContent=paused?'Resume motion':'Pause motion';motion.setAttribute('aria-pressed',String(paused))}motion.onclick=()=>{paused=!paused;motionLabel()};motionLabel();
+const legend=document.createElement('span');legend.textContent='! approval';legend.style.color=colors.approval;document.querySelector('.legend').append(legend);
+let renderedAt=0,animationFrame=0;
+function motionActive(){return !paused&&!document.hidden&&document.hasFocus()&&cityWorkers().some(w=>['working','tool','approval'].includes(statusFor(w))||w.route?.length)}
+function updateAnimation(){
+  if(motionActive()){if(!animationFrame)animationFrame=requestAnimationFrame(frame)}
+  else if(animationFrame){cancelAnimationFrame(animationFrame);animationFrame=0}
+}
+function frame(ms){
+  animationFrame=0;
+  if(!motionActive()){renderedAt=ms;return}
+  if(ms-renderedAt>=33){const dt=Math.min(.1,(ms-renderedAt)/1000);renderedAt=ms;for(const w of cityWorkers())workerPosition(w,ms/1000,dt);if(following&&cityWorkers().some(w=>w.id===following))focusWorker(following);drawScene(ms)}
+  updateAnimation();
+}
+const paint=()=>{if(!document.hidden&&document.hasFocus())drawScene(performance.now());updateAnimation()};picker.addEventListener('change',paint);canvas.addEventListener('pointerup',paint);canvas.addEventListener('pointermove',()=>{if(dragging)paint()});canvas.addEventListener('wheel',paint);motion.addEventListener('click',()=>{renderedAt=performance.now();paint()});new ResizeObserver(paint).observe(canvas);
+document.addEventListener('visibilitychange',paint);window.addEventListener('focus',paint);window.addEventListener('blur',paint);
+reducedMotion.addEventListener('change',event=>{paused=event.matches;motionLabel();paint()});
+// Feed updates preserve district addresses, camera state, and an agent's route in progress.
+const districtSpacing=16,districtRadius=5.7,arterialHalf=districtSpacing/2,districtMemory=new Map(),workstreamMemory=new Map();
+Object.assign(colors,{waiting:'#9397ab',stale:'#595d6c'});
+function canonicalCwd(cwd){let path=String(cwd||'').trim();if(!path)return'';path=path.replace(/^\\\\\?\\UNC\\/i,'//').replace(/^\\\\\?\\/,'').replace(/^\/\/\?\/UNC\//i,'//').replace(/^\/\/\?\//,'').replace(/\\/g,'/');const unc=path.startsWith('//');path=(unc?'//':'')+path.replace(/^\/+|\/+$/g,'').replace(/\/{2,}/g,'/');return /^[a-z]:\//i.test(path)||unc?'win:'+path.toLowerCase():'posix:'+path}
+function projectGroups(rows){rows=Array.isArray(rows)?rows.filter(a=>a&&typeof a.id==='string'):[];const byId=new Map(rows.map(a=>[a.id,a])),groups=new Map();for(const agent of rows){const root=rootFor(agent,byId),key=canonicalCwd(root.cwd)||`unknown:${root.id}`;if(!groups.has(key))groups.set(key,{key,cwd:root.cwd||'',sessions:[],agents:[]});const group=groups.get(key);group.agents.push(agent);if(agent.id===root.id&&!group.sessions.some(item=>item.id===root.id))group.sessions.push(root)}for(const group of groups.values()){group.sessions.sort((a,b)=>a.id.localeCompare(b.id));group.root=group.sessions[0];group.cwd=group.root?.cwd||group.cwd}return [...groups.values()].sort(projectOrder)}
+function projectPriority(group){const statuses=group.agents.map(statusFor);return statuses.includes('approval')?0:statuses.some(status=>status==='working'||status==='tool')?1:2}
+function projectOrder(a,b){return projectPriority(a)-projectPriority(b)||(projectName(a.cwd)+a.key).localeCompare(projectName(b.cwd)+b.key)}
+function statusFor(w){
+  if(w.approval_pending||w.status==='approval'||w.working_on?.status==='approval')return 'approval';
+  if(w.stale)return 'stale';
+  const state=w.working_on?.status||w.status,live=['working','running','thinking','tool'].includes(state)?state:'';
+  if(state==='waiting'||(live&&/\bwaiting\b/i.test(w.working_on?.summary||w.current_action||'')))return 'waiting';
+  if(live)return live==='tool'?'tool':'working';
+  if(['completed','failed','interrupted'].includes(w.turn_status))return w.turn_status==='completed'?'completed':'failed';
+  if(['failed','interrupted'].includes(state))return 'failed';
+  if(['done','completed'].includes(state))return 'completed';
+  return 'idle';
+}
+function workstreamFor(agent){const label=agent.parent?(agent.task||agent.title):(agent.task||agent.title||agent.working_on?.task_path?.[1]);return String(label||'Unassigned work').trim()||'Unassigned work'}
+function terminalStatus(status){return status==='completed'||status==='failed'}
+function cityWorkers(){return [...workers.values()].filter(w=>!terminalStatus(statusFor(w)))}
+function activeAreas(){const visible=new Set(cityWorkers().map(w=>w.area.key));return areas.filter(area=>visible.has(area.key))}
+function sync(next){
+  const agents=Array.isArray(next.sessions)?next.sessions.filter(a=>a&&typeof a.id==='string'):[];
+  const byId=new Map(agents.map(a=>[a.id,a]));
+  areas=projectGroups(agents).map(project=>{
+    if(!districtMemory.has(project.key)){const slot=districtMemory.size;districtMemory.set(project.key,{x:(slot%3)*districtSpacing,z:Math.floor(slot/3)*districtSpacing,number:slot+1,color:'#9184d9'})}
+    return {...districtMemory.get(project.key),...project};
+  });
+  const nextWorkers=new Map();
+  for(const area of areas){
+    const group=area.agents.filter(agent=>!terminalStatus(statusFor(agent))),memory=workstreamMemory.get(area.key)||new Map();workstreamMemory.set(area.key,memory);
+    for(const agent of group){const label=workstreamFor(agent),key=label.toLocaleLowerCase();if(!memory.has(key))memory.set(key,{key,label,slot:memory.size})}
+    area.workstreams=[...new Set(group.map(agent=>workstreamFor(agent).toLocaleLowerCase()))].map(key=>memory.get(key)).sort((a,b)=>a.slot-b.slot);
+    for(const stream of area.workstreams){
+      const k=stream.slot,members=group.filter(agent=>workstreamFor(agent).toLocaleLowerCase()===stream.key),used=new Set(),station=stations[k%stations.length];stream.x=station.x;stream.z=station.z;
+      for(const agent of members){const old=workers.get(agent.id);if(old?.station===k&&old.area.key===area.key)used.add(old.seat)}
+      for(const agent of members){
+        const old=workers.get(agent.id);let seat=old?.station===k&&old.area.key===area.key?old.seat:0;
+        if(!(old?.station===k&&old.area.key===area.key)){while(used.has(seat))seat++;used.add(seat)}
+        const targetX=area.x+station.x+(seat%3-1)*1.25,targetZ=area.z+station.z+Math.floor(seat/3)*1.25;
+        const w={...agent,area,station:k,seat,targetX,targetZ,x:old?.x??targetX,z:old?.z??targetZ,route:old?.route||[],phase:(hash(agent.id)%628)/100};
+        if(!old||old.targetX!==targetX||old.targetZ!==targetZ){
+          if(old){
+            // Finish the current safe segment before joining the next assignment's transit lane.
+            const route=old.route||[],from=route.at(-1)||w,departure=old.area.z+.95,arrival=area.z+.95;
+            w.route=[...route,{x:from.x,z:departure},...(old.area.key===area.key?[]:[{x:-6.5,z:departure},{x:-6.5,z:arrival}]),{x:targetX,z:arrival},{x:targetX,z:targetZ}];
+          }else w.route=[];
+        }
+        nextWorkers.set(w.id,w);
+      }
+    }
+    for(const agent of area.agents.filter(agent=>terminalStatus(statusFor(agent)))){const old=workers.get(agent.id);nextWorkers.set(agent.id,{...agent,area,station:-1,seat:0,targetX:old?.targetX??area.x,targetZ:old?.targetZ??area.z,x:old?.x??area.x,z:old?.z??area.z,route:[],phase:(hash(agent.id)%628)/100})}
+  }
+  workers=nextWorkers;state=next;
+  if(!workers.has(selected))selected=[...workers.values()].find(w=>statusFor(w)==='approval')?.id||[...workers.values()].find(w=>active(w.status))?.id||workers.keys().next().value||'';
+  if(!workers.has(hovered))hovered='';
+  for(const area of areas)area.color=rootAccent(area.root);
+  if(menuTarget&&!workers.has(menuTarget))menuTarget='';if(following&&!workers.has(following))following='';if(timelineTarget&&!workers.has(timelineTarget))timelineTarget='';
+  updatePicker();updateDetail();
+  renderRail();renderActions();
+  if(firstFit&&workers.size){fitView();firstFit=false}
+};
+function workerPosition(w,t,dt=0){
+  let distance=paused||document.hidden||!document.hasFocus()?0:Math.min(.1,Math.max(0,dt))*2.4;if(dt>0)w.moving=false;
+  while(distance>0&&w.route?.length){
+    const point=w.route[0],dx=point.x-w.x,dz=point.z-w.z,length=Math.hypot(dx,dz);
+    if(length<.0001){w.route.shift();continue}
+    const step=Math.min(distance,length);w.x+=dx/length*step;w.z+=dz/length*step;distance-=step;w.moving=true;
+    if(step===length){w.x=point.x;w.z=point.z;w.route.shift()}
+  }
+  return {x:w.x,z:w.z,bob:w.moving?Math.abs(Math.sin(t*6+w.phase))*.04:0};
+};
+canvas.setAttribute('tabindex','0');
+canvas.addEventListener('keydown',e=>{
+  const pan={ArrowLeft:[36,0],ArrowRight:[-36,0],ArrowUp:[0,36],ArrowDown:[0,-36]}[e.key];
+  if(pan){e.preventDefault();camera.x+=pan[0];camera.y+=pan[1];paint()}
+  else if(e.key==='+'||e.key==='='||e.key==='-'){e.preventDefault();camera.zoom=Math.max(.12,Math.min(3,camera.zoom*(e.key==='-'?.85:1.15)));paint()}
+  else if(e.key.toLowerCase()==='f'){e.preventDefault();fitView();paint()}
+});
+// Architecture is deliberately neutral; emissive cyan/emerald identifies the city network.
+function cityTile(x,z,w,d,fill,y=0,stroke){polygon([project(x-w,z-d,y),project(x+w,z-d,y),project(x+w,z+d,y),project(x-w,z+d,y)],fill,stroke)}
+function cityLine(points,color,width=1){ctx.beginPath();points.forEach((p,i)=>{const s=project(p[0],p[1],p[2]||0);i?ctx.lineTo(s.x,s.y):ctx.moveTo(s.x,s.y)});ctx.strokeStyle=color;ctx.lineWidth=width;ctx.stroke()}
+function buildingShadow(x,z,w,d,h){const drop=h*.48;polygon([project(x-w,z-d),project(x+w,z-d),project(x+w+drop,z-d+drop),project(x+w+drop,z+d+drop),project(x-w+drop,z+d+drop),project(x-w,z+d)],'#00000055')}
+function drawGrid(){
+  const visible=activeAreas(),maxX=Math.max(districtSpacing,...visible.map(a=>a.x))+districtSpacing,maxZ=Math.max(districtSpacing,...visible.map(a=>a.z))+districtSpacing;
+  cityTile((maxX-districtSpacing)/2,(maxZ-districtSpacing)/2,(maxX+districtSpacing)/2,(maxZ+districtSpacing)/2,'#111220');
+  for(let x=-districtSpacing;x<=maxX;x+=1.3)cityLine([[x,-districtSpacing],[x,maxZ]],'#9397ab09');
+  for(let z=-districtSpacing;z<=maxZ;z+=1.3)cityLine([[-districtSpacing,z],[maxX,z]],'#9397ab09');
+  for(let x=-arterialHalf;x<=maxX;x+=districtSpacing){
+    cityTile(x,(maxZ-districtSpacing)/2,.82,(maxZ+districtSpacing)/2,'#0d0e18');
+    cityLine([[x-.9,-districtSpacing],[x-.9,maxZ]],'#3f424d');cityLine([[x+.9,-districtSpacing],[x+.9,maxZ]],'#3f424d');
+    for(let z=-13;z<maxZ;z+=1.4)cityTile(x,z,.025,.25,'#595d6c44');
+  }
+  for(let z=-arterialHalf;z<=maxZ;z+=districtSpacing){
+    cityTile((maxX-districtSpacing)/2,z,(maxX+districtSpacing)/2,.82,'#0d0e18');
+    cityLine([[-districtSpacing,z-.9],[maxX,z-.9]],'#3f424d');cityLine([[-districtSpacing,z+.9],[maxX,z+.9]],'#3f424d');
+    for(let x=-13;x<maxX;x+=1.4)cityTile(x,z,.25,.025,'#595d6c44');
+  }
+};
+function cityBuilding(area,stream){
+  // ponytail: four visible slots match current agent concurrency; group overflow if the runtime raises it.
+  const k=stream.slot%stations.length,x=area.x+stream.x,z=area.z+stream.z,outer=stream.z<0?-1:1;
+  buildingShadow(x,z,1.8,1.55,1.6);
+  cube(x,z,1.8,1.55,.16,'#3a3d4a',.18);
+  cube(x,z+outer*.9,1.7,.5,k===0?1.7:k===1?1.05:.78,k===0?'#31343f':'#2a2d38',.34);
+  cube(x,z+outer*.9,1.76,.56,.1,'#6b6f80',k===0?2.04:k===1?1.39:1.12);
+  cityTile(x,z+outer*.88,1.5,.3,'#2b2d3a',k===0?2.15:k===1?1.5:1.23);
+  for(let i=-1;i<=1;i++){
+    const xx=x+i*.94,front=z+outer*.34;
+    cube(xx,front,.34,.035,.26,'#423a6a',k===0?1.27:.7);
+    cityLine([[xx-.24,front-outer*.045,k===0?1.4:.85],[xx+.24,front-outer*.045,k===0?1.4:.85]],'#9184d9',1.2);
+    if(k===1){cube(xx,z+outer*.88,.25,.28,.13,'#2a2d38',1.51);cityLine([[xx-.15,z+outer*.65,1.66],[xx+.15,z+outer*1.08,1.66]],'#6b6f80')}
+  }
+  if(k===0){
+    cube(x-1.35,z+outer*.9,.14,.14,2.65,'#454857',.35);
+    cube(x-1.35,z+outer*.9,.18,.18,.06,'#b5abfc',3.02);
+    cityLine([[x-1.35,z+outer*.9,3.1],[x-1.35,z+outer*.9,3.75]],'#9397ab',1.4);
+  }
+  if(k===2){
+    cube(x+1.1,z+outer*.55,.11,.11,1.9,'#454857',.35);
+    polygon([project(x+.3,z+outer*.55,2.12),project(x+1.42,z+outer*.55,2.12),project(x+1.42,z+outer*.55,1.57),project(x+.3,z+outer*.55,1.57)],'#9184d922','#9184d96b');
+  }
+  if(k===3)for(const i of [-1,1]){
+    cube(x+i*1.4,z+outer*.4,.24,.36,.42,'#31343f',.34);
+    cube(x+i*1.4,z+outer*.4,.2,.31,.26,'#454857',.76);
+  }
+  cityLine([[area.x,area.z,.19],[x,area.z,.19],[x,z-outer*1.5,.35]],'#9184d946',1.2);
+  cityTile(x,z-outer*1.45,1.7,.05,'#9184d9',.35);
+  const sign=project(x,z+outer*1.55,.4);ctx.font='600 '+Math.max(9,10*camera.zoom)+'px ui-monospace';ctx.textAlign='center';ctx.fillStyle='#cfd3e5';ctx.fillText(short(stream.label,22).toUpperCase(),sign.x,sign.y+(outer>0?12:-9));
+}
+function drawArea(area){
+  buildingShadow(area.x,area.z,5.7,5.7,.4);cube(area.x,area.z,5.65,5.65,.18,'#20222f');
+  cityTile(area.x,area.z,5.4,5.4,'#1a1c28',.19,'#595d6c44');
+  const accent=area.color||rootAccent(area.root);
+  for(const side of [-1,1]){
+    cityLine([[area.x+side*.8,area.z-5.48,.2],[area.x+side*5.48,area.z-5.48,.2],[area.x+side*5.48,area.z-.8,.2]],accent+'88');
+    cityLine([[area.x+side*.8,area.z+5.48,.2],[area.x+side*5.48,area.z+5.48,.2],[area.x+side*5.48,area.z+.8,.2]],accent+'88');
+    cityTile(area.x+side*5.92,area.z,.58,.48,'#3f424d',.2);
+    cityTile(area.x,area.z+side*5.92,.48,.58,'#3f424d',.2);
+    for(let stripe=-2;stripe<=2;stripe++){
+      cityTile(area.x+side*5.92,area.z+stripe*.16,.4,.035,'#9397ab',.21);
+      cityTile(area.x+stripe*.16,area.z+side*5.92,.035,.4,'#9397ab',.21);
+    }
+  }
+  cityTile(area.x,area.z,.48,5.35,'#0d0e18',.2);cityTile(area.x,area.z,5.35,.48,'#0d0e18',.2);
+  cityTile(area.x,area.z+.95,6.5,.18,'#0d0e18',.2);
+  cityLine([[area.x-6.5,area.z+.95,.21],[area.x+6.5,area.z+.95,.21]],'#9184d966',1.2);
+  for(let i=-4;i<=4;i++)cityLine([[area.x-.09,area.z+i,.21],[area.x+.09,area.z+i,.21]],'#5d529470');
+  for(const i of [-1,1])for(const j of [-1,1]){
+    cube(area.x+i*5.1,area.z+j*5.1,.065,.065,.7,'#454857',.18);
+    cube(area.x+i*5.1,area.z+j*5.1,.09,.09,.07,'#b5abfc',.9);
+  }
+  area.workstreams.forEach(stream=>cityBuilding(area,stream));
+  const x=area.x,z=area.z-.4;
+  buildingShadow(x,z,.85,.85,3.7);cube(x,z,.95,.95,.2,'#6b6f80',.18);
+  cube(x,z,.7,.7,2.72,'#3a3d4a',.38);cube(x,z,.78,.78,.13,'#6b6f80',3.1);
+  cube(x,z,.44,.44,.6,'#31343f',3.23);cube(x,z,.49,.49,.07,accent,3.83);
+  for(let i=0;i<5;i++){cube(x+.71,z,.018,.55,.045,accent,.72+i*.45);cube(x,z+.71,.55,.018,.045,accent,.72+i*.45)}
+  cityLine([[x,z,3.91],[x,z,4.65]],'#b2b6ca',1.3);
+  const hub=project(x,z+.92,.4);ctx.font='600 9px ui-monospace';ctx.textAlign='center';ctx.fillStyle='#cfd3e5';ctx.fillText('TASK HUB',hub.x,hub.y+12);
+  const label=project(area.x,area.z-6.15,.45),name=short(projectName(area.cwd),25),members=cityWorkers().filter(w=>w.area.key===area.key),attention=members.filter(w=>statusFor(w)==='approval').length;
+  ctx.textAlign='center';ctx.font='600 12px Segoe UI';const width=Math.max(180,ctx.measureText(name).width+35);
+  ctx.fillStyle='#181a26ee';ctx.fillRect(label.x-width/2,label.y-31,width,41);ctx.fillStyle=attention?'#9184d9':'#9184d9';ctx.fillRect(label.x-width/2,label.y-31,3,41);
+  ctx.fillStyle='#e9e9ed';ctx.fillText(name,label.x,label.y-14);ctx.font='9px ui-monospace';ctx.fillStyle='#9397ab';ctx.fillText('DISTRICT '+String(area.number).padStart(2,'0')+' / '+members.length+' AGENTS'+(attention?' / '+attention+' APPROVAL':''),label.x,label.y+1);
+};
+function semanticInspector(w){
+  const observations=(Array.isArray(w.trace?.observations)?w.trace.observations:[]).filter(o=>o&&typeof o==='object'),nodes=(Array.isArray(w.work_breakdown)?w.work_breakdown:[]).filter(o=>o&&['prompt','agent','step','delegation','outcome'].includes(o.kind)).slice(0,120),evidence=observations.filter(o=>['tool','result','file','test','approval','error','metric'].includes(o.kind)).slice(0,120),current=w.working_on?.observation_id;
+  const notice=w.trace?.truncated?'<p class="meta">History abbreviated to keep monitoring lightweight; older context may be omitted.</p>':'';
+  if(!nodes.length&&!evidence.length)return notice;
+  const byId=new Map(nodes.map(node=>[node.id,node])),lineage=[];let cursor=byId.get(current),guard=0;
+  while(cursor&&guard++<12){lineage.unshift(cursor);cursor=byId.get(cursor.parent_id)}
+  const children=nodes.filter(node=>node.parent_id===current),primaryIds=new Set([...lineage,...children].map(node=>node.id)),root=w.area?.root||w,prompt=w.prompt_context||root.prompt_context||{},seen=new Set([prompt.summary,root.task,root.title,w.task,w.title,w.working_on?.summary,w.current_action,...(Array.isArray(w.working_on?.task_path)?w.working_on.task_path:[])].filter(Boolean).map(textKey)),meta=node=>{const owner=node.owner||node.session_id,state=node.status;return `${owner?`owner ${esc(short(owner,40))}`:''}${owner&&state?' · ':''}${state?esc(state):''}`},nodeHtml=node=>`<li>${esc(short(node.summary||node.kind,260))}${meta(node)?` <span class="status">${meta(node)}</span>`:''}</li>`,primary=[...lineage.filter(node=>node.id!==current&&node.kind!=='prompt'),...children].filter(node=>{const key=textKey(node.summary||node.kind);return key&&!seen.has(key)&&(seen.add(key),true)}).map(nodeHtml).join(''),history=nodes.filter(node=>!primaryIds.has(node.id)&&node.kind!=='prompt').map(nodeHtml).join('');
+  const buckets=new Map([['Approvals / blockers',[]],['Outcomes',[]],['Tests',[]],['Files',[]],['Commands',[]],['Metrics',[]]]),bucket=item=>item.kind==='approval'||item.kind==='error'?'Approvals / blockers':item.kind==='result'?'Outcomes':item.kind==='test'?'Tests':item.kind==='file'?'Files':item.kind==='tool'?'Commands':'Metrics';
+  for(const item of evidence)buckets.get(bucket(item)).push(item);
+  const evidenceHtml=[...buckets].filter(([,items])=>items.length).map(([label,items])=>`<section><strong>${label}</strong>${items.map(item=>`<div>${esc(short(item.tool||item.summary||'Recorded evidence',260))}${item.status?` · ${esc(item.status)}`:''}${item.exit_code!=null?` · exit ${esc(item.exit_code)}`:''}${Array.isArray(item.files)&&item.files.length?` · ${esc(item.files.slice(0,8).map(x=>short(x,120)).join(', '))}`:''}${item.kind==='tool'&&item.detail?`<details data-semantic-key="${esc(w.id+':tool:'+item.id)}"><summary>Tool detail</summary>${esc(String(item.detail).slice(0,12000))}</details>`:''}</div>`).join('')}</section>`).join('');
+  return `${notice}${primary?`<div class="field"><label>Work breakdown</label><ul>${primary}</ul></div>`:''}${history?`<details class="field" data-semantic-key="${esc(w.id+':history')}"><summary>Historical work</summary><ul>${history}</ul></details>`:''}${evidenceHtml?`<details class="field" data-semantic-key="${esc(w.id+':evidence')}"><summary>Evidence</summary>${evidenceHtml}</details>`:''}`
+}
+const rootAccent=()=> '#9184d9',rail=document.querySelector('#session-rail'),actionMenu=document.querySelector('#action-menu'),railOpen=new Map();let menuTarget='',following='',timelineTarget='';
+function activeRoots(){return projectGroups(state?.sessions).map(project=>{const active_agents=project.agents.filter(x=>x.id!==project.root.id&&['working','tool','approval'].includes(statusFor(x))).length,anchors=[];for(const row of project.agents.filter(x=>['working','tool','approval'].includes(statusFor(x)))){const text=row.working_on?.summary||(!row.parent?row.current_action:row.task)||row.current_action;if(text&&!anchors.includes(text))anchors.push(text)}return {...project.root,...project,active_agents,summary:anchors.slice(0,2).join(' · ')||'No current work recorded',accent:rootAccent(project.root)}})}
+function renderRail(){
+  const scroll=rail.scrollTop,focus=document.activeElement?.closest?.('[data-worker]')?.dataset.worker,focusKey=document.activeElement?.closest?.('[data-rail-key]')?.dataset.railKey;
+  for(const item of rail.querySelectorAll?.('details[data-rail-key]')||[])railOpen.set(item.dataset.railKey,item.open);
+  const projects=activeRoots(),selectedProject=workers.get(selected)?.area.key,fold=(key,fallback=false)=>railOpen.has(key)?railOpen.get(key):fallback;
+  rail.innerHTML='<button data-project="" type="button">All projects</button>'+projects.map(project=>{
+    const byId=new Map(project.agents.map(a=>[a.id,a])),projectKey='project:'+project.key,bodies=[];
+    for(const session of project.sessions){
+      const members=project.agents.filter(agent=>rootFor(agent,byId).id===session.id),current=members.filter(a=>!terminalStatus(statusFor(a))),history=members.filter(a=>terminalStatus(statusFor(a))),key='history:'+session.id;
+      const render=agent=>'<button class="'+(agent.id===session.id?'session-entry':'agent-entry')+(agent.id===selected?' active':'')+'" aria-current="'+(agent.id===selected)+'" data-worker="'+esc(agent.id)+'" type="button">'+esc(agent.id===session.id?projectName(project.cwd)+' · '+agent.id.slice(0,8):short(workerName(agent),30))+' · '+esc(statusFor(agent))+'</button>';
+      bodies.push('<section class="session-group">'+current.map(render).join('')+(history.length?'<details class="session-history" data-rail-key="'+esc(key)+'"'+(fold(key)?' open':'')+'><summary>History ('+history.length+') · '+esc(projectName(project.cwd))+' · '+esc(session.id.slice(0,8))+'</summary>'+history.map(render).join('')+'</details>':'')+'</section>');
+    }
+    return '<details class="'+(project.key===selectedProject?'project-active':'')+'" data-rail-key="'+esc(projectKey)+'"'+(fold(projectKey,project.agents.some(a=>!terminalStatus(statusFor(a))))?' open':'')+'><summary>'+esc(projectName(project.cwd))+'<small>'+esc(short(project.summary,100))+' · '+project.sessions.length+' sessions · '+project.active_agents+' active</small></summary>'+bodies.join('')+'</details>';
+  }).join('');
+  rail.scrollTop=scroll;
+  if(focus)[...(rail.querySelectorAll?.('[data-worker]')||[])].find(el=>el.dataset.worker===focus)?.focus({preventScroll:true});
+  else if(focusKey)[...(rail.querySelectorAll?.('[data-rail-key]')||[])].find(el=>el.dataset.railKey===focusKey)?.querySelector('summary')?.focus({preventScroll:true});
+}
+function renderActions(){const w=workers.get(menuTarget);actionMenu.hidden=!w;if(!w)return;actionMenu.innerHTML=(canSendInstruction(w)?'<button class="primary" type="button" data-action="send">Send instruction…</button>':'')+'<button type="button" data-action="inspect">Inspect work</button><button type="button" data-action="timeline">Open timeline</button><button type="button" data-action="focus">Focus camera</button><button type="button" data-action="clear">Stop following</button>'}
+function focusWorker(id){const w=workers.get(id);if(!w)return;const scale=29*camera.zoom;camera.x=-(w.x-w.z)*scale;camera.y=-(w.x+w.z)*scale*.48}
+function openActions(id){if(!workers.has(id))return;menuTarget=id;choose(id);renderActions()}
+function setFollow(id=selected){if(!workers.has(id))return;following=id;menuTarget=id;focusWorker(id);renderActions()}
+function clearFocus(){following='';menuTarget='';timelineTarget='';renderActions();renderRail()}
+function openTimeline(id=selected){if(!workers.has(id))return;timelineTarget=id;menuTarget=id;choose(id);renderActions()}
+rail.addEventListener('toggle',event=>{if(event.target.isConnected&&event.target.dataset?.railKey)railOpen.set(event.target.dataset.railKey,event.target.open)},true);
+rail.addEventListener('click',event=>{const button=event.target.closest('button');if(!button)return;const id=button.dataset.worker;if(!id){clearFocus();fitView();paint();return}choose(id);focusWorker(id);paint()});actionMenu.addEventListener('click',event=>{const action=event.target.dataset.action,w=workers.get(menuTarget);if(action==='send'&&canSendInstruction(w))sendDialog(w,sessionLabel(w,workers));if(action==='inspect')choose(menuTarget);if(action==='timeline')openTimeline(menuTarget);if(action==='focus')setFollow(menuTarget);if(action==='clear')clearFocus()});document.addEventListener('keydown',event=>{if(event.key==='Escape')clearFocus()});
+canvas.addEventListener('pointermove',()=>{if(dragging&&following)clearFocus()});canvas.addEventListener('wheel',()=>{if(following)clearFocus()});canvas.addEventListener('keydown',event=>{if((event.key==='Enter'||event.key===' ')&&selected){event.preventDefault();openActions(selected)}});document.querySelector('#fit').addEventListener('click',()=>{if(following)clearFocus()});
+const events=new EventSource('/api/events');events.addEventListener('state',e=>{const initial=!state;sync(JSON.parse(e.data));if(initial)fitView();paint();connection.classList.remove('offline');connection.lastElementChild.textContent='live'});events.onopen=()=>{connection.classList.remove('offline');connection.lastElementChild.textContent='live'};events.onerror=()=>{connection.classList.add('offline');connection.lastElementChild.textContent='reconnecting · last data'};paint();
+globalThis.foundryView={getState:()=>state,getSelected:()=>selected||''};
+</script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+{
+  "component_id": "11111111-1111-4111-8111-111111111111",
+  "created_at": "2026-01-01T00:00:00Z",
+  "records": [
+    {
+      "file": "component.object.json",
+      "revision": "f08c0aa946f137478a7a73e3746969fe35abdf92afd593fe46b77a8375ca880f",
+      "title": "Manual handoff review"
+    },
+    {
+      "file": "template.object.json",
+      "revision": "309dcd249a60021c53c2872772beddd14e6afdfdfba72faef07f38bfae37fc17",
+      "title": "Provider-neutral handoff template"
+    },
+    {
+      "file": "handoff-work.object.json",
+      "revision": "57c64223682cf1fc0e482724ed147d23b8f7a92d5e38e6035c38fbc63282735a",
+      "title": "Provider-neutral handoff work"
+    }
+  ],
+  "template_id": "22222222-2222-4222-8222-222222222222"
+}

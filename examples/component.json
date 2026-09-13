@@ -1,0 +1,17 @@
+{
+  "title": "Acceptance brief runbook",
+  "purpose": "Make the task and acceptance criteria explicit before changes",
+  "component_type": "runbook",
+  "source_ref": "example:acceptance-brief",
+  "version": "1.0.0",
+  "sha256": "f317d0877df810cac692443c94b42a0fac45301cd2e27ce34e83c2fb2e3ad17e",
+  "rationale": "A tiny independently versioned example; not an installed instruction",
+  "compatibility": ["Plain UTF-8 Markdown/text"],
+  "limitations": ["Illustrative only; no behavioral acceptance has been recorded"],
+  "asset": {
+    "content_base64": "UmVhZCB0aGUgdGFzayBhbmQgY29uZmlybSB0aGUgYWNjZXB0YW5jZSBjcml0ZXJpYS4K",
+    "media_type": "text/plain",
+    "license": "CC0-1.0",
+    "selected": true
+  }
+}

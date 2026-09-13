@@ -1,0 +1,27 @@
+{
+  "action": "save_work",
+  "created_at": "2026-01-01T00:00:00Z",
+  "id": "33333333-3333-4333-8333-333333333333",
+  "kind": "work",
+  "parent_revision": null,
+  "payload": {
+    "completion": {
+      "completed": false,
+      "source": "user",
+      "statuses": [
+        "unrecorded"
+      ]
+    },
+    "context": "Public handoff example; no project data included.",
+    "snapshot": {
+      "harness": "unrecorded",
+      "id": "external-session-unrecorded",
+      "model": "unrecorded",
+      "name": "Unrecorded session",
+      "provider": "unrecorded",
+      "status": "unrecorded",
+      "task": "Review the provider-neutral handoff."
+    }
+  },
+  "schema_version": 1
+}

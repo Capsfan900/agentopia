@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "python": {
+    "id": "pythonembed-3.13-64",
+    "metadata_url": "https://www.python.org/ftp/python/3.13.15/windows-3.13.15.json",
+    "url": "https://www.python.org/ftp/python/3.13.15/python-3.13.15-embeddable-amd64.zip",
+    "sha256": "791ada5e20aba24524f8d939cdeb069976d632a699fe5cb65274b23f4545e68a"
+  }
+}

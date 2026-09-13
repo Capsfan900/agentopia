@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <AssemblyName>AgentFoundry</AssemblyName>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <RuntimeFrameworkVersion>8.0.31</RuntimeFrameworkVersion>
+    <RollForward>LatestPatch</RollForward>
+    <PublishTrimmed>false</PublishTrimmed>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4191.47" />
+    <Compile Include="NativeProcesses.cs;TerminalSecurity.cs;LaunchValidation.cs;TerminalProfiles.cs;TerminalServer.cs;TerminalWorker.cs;DesktopHost.cs;LaunchDialog.cs" />
+    <EmbeddedResource Include="bundle-manifest.json" LogicalName="AgentFoundry.bundle.json" Condition="Exists('bundle-manifest.json')" />
+  </ItemGroup>
+</Project>

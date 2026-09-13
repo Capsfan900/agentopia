@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <UseAppHost>false</UseAppHost>
+    <RestoreIgnoreFailedSources>true</RestoreIgnoreFailedSources>
+    <NuGetAudit>false</NuGetAudit>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <Compile Include="../NativeProcesses.cs" Link="NativeProcesses.cs" />
+    <Compile Include="../TerminalSecurity.cs" Link="TerminalSecurity.cs" />
+    <Compile Include="../LaunchValidation.cs" Link="LaunchValidation.cs" />
+    <Compile Include="../TerminalProfiles.cs" Link="TerminalProfiles.cs" />
+    <Compile Include="../TerminalServer.cs" Link="TerminalServer.cs" />
+    <Compile Include="../TerminalWorker.cs" Link="TerminalWorker.cs" />
+    <Content Include="../terminal/**/*" Link="terminal/%(RecursiveDir)%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

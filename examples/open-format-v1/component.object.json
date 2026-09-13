@@ -1,0 +1,29 @@
+{
+  "action": "save_artifact",
+  "created_at": "2026-01-01T00:00:00Z",
+  "id": "11111111-1111-4111-8111-111111111111",
+  "kind": "component",
+  "parent_revision": null,
+  "payload": {
+    "asset": {
+      "content_base64": "UmV2aWV3IHRoZSBoYW5kb2ZmIG1hbnVhbGx5Lgo=",
+      "license": "CC0-1.0",
+      "media_type": "text/plain",
+      "selected": true
+    },
+    "compatibility": [
+      "unrecorded"
+    ],
+    "component_type": "runbook",
+    "limitations": [
+      "No provider-specific behavior is recorded."
+    ],
+    "purpose": "A provider-neutral reminder to review a transferred handoff.",
+    "rationale": "The text is intentionally small and public.",
+    "sha256": "0f438f5272722ce06a732b050778087967e0e798cbc6c320a5b368bea681c1f6",
+    "source_ref": "./component-asset.txt",
+    "title": "Manual handoff review",
+    "version": "unrecorded"
+  },
+  "schema_version": 1
+}

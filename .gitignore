@@ -1,0 +1,86 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# .NET and packaged output
+**/bin/
+**/obj/
+**/.nuget/
+desktop/windows/dist/
+desktop/windows/stage/
+desktop/windows/bundle-manifest.json
+desktop/windows/package-report.md
+
+# Runtime and browser state
+.desktop-acceptance/
+.native-preview/
+**/.foundry-service.lock
+**/EBWebView/
+**/WebView2/
+**/User Data/
+
+# Machine-specific test evidence
+*.log
+*.stdout.*
+*.stderr.*
+*.jsonl
+desktop/windows/*-performance.*
+desktop/windows/*-performance*.json
+desktop/windows/*-service-report.md
+desktop/windows/native-process-report.md
+desktop/windows/real-feed-performance*.json
+desktop/windows/*-check/final-*
+desktop/windows/webview-check/run-*
+desktop/windows/webview-check/probe-*
+desktop/windows/webview-check/visible-*
+desktop/windows/webview-check/foreground-*
+desktop/windows/webview-check/geometry-*
+desktop/windows/webview-check/navigation-*
+desktop/windows/webview-check/performance-*
+desktop/windows/webview-check/review-*
+docs/*verification*.txt
+docs/python-suite-*.txt
+docs/verification-*.md
+
+# Private working records and source snapshots
+.superpowers/
+.fidelity/
+docs/curation/
+docs/superpowers/
+RESTART-HANDOFF.md
+docs/library-utility-audit.md
+docs/visible-observatory-test-plan.md
+/curation.py
+/curation_import.py
+/curation_relevance.py
+/test_curation.py
+/test_curation_import.py
+/test_curation_relevance.py
+
+# Local configuration, credentials, and user data
+.env
+.env.*
+!.env.example
+**/auth.json
+**/settings.json
+**/terminal-profiles.json
+*.pem
+*.key
+*.pfx
+*.p12
+*.db
+*.db-*
+*.sqlite*
+/library/
+/data/
+/exports/
+
+# Archives and generated binaries
+*.zip
+*.7z
+*.rar
+*.msi
+*.msix
+*.exe
+*.dll
+*.pdb

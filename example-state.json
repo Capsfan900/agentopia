@@ -1,0 +1,41 @@
+{
+  "sessions": [
+    {
+      "id": "lead",
+      "name": "Lead",
+      "task": "Integrate the release",
+      "status": "working",
+      "cwd": "C:/Projects/Example project",
+      "current_action": "Coordinating the release review",
+      "model": "any-model"
+    },
+    {
+      "id": "tests",
+      "parent": "lead",
+      "name": "Test worker",
+      "task": "Run verification suites",
+      "status": "approval",
+      "approval_pending": true,
+      "current_action": "Approval required — review this task in Codex",
+      "recent_activity": [{"detail": "Test command awaits approval", "status": "approval"}],
+      "model": "any-model"
+    },
+    {
+      "id": "review",
+      "parent": "lead",
+      "name": "Review worker",
+      "status": "completed",
+      "task": "Review release changes",
+      "current_action": "Turn complete",
+      "recent_activity": [{"detail": "Reviewed the release", "status": "completed"}]
+    },
+    {
+      "id": "nested",
+      "parent": "tests",
+      "name": "Nested worker",
+      "status": "working",
+      "task": "Inspect test fixtures",
+      "current_action": "Reading and searching project files"
+    }
+  ]
+}

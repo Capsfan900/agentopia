@@ -1,0 +1,24 @@
+{
+  "title": "Reviewed release helper",
+  "purpose": "Resume a release review using explicit instructions and evidence",
+  "harness": {"id": "unrecorded", "version": "unrecorded", "config_ref": "unrecorded"},
+  "model": {"name": "unrecorded", "effort": "unrecorded"},
+  "instruction_layers": [],
+  "components": [],
+  "capabilities": ["filesystem-read"],
+  "tools": [],
+  "permissions_policy": {"ref": "example:manual-review", "description": "Confirm destination permissions; no external writes without approval"},
+  "quality_policy": {
+    "procedures": ["design-before-change", "minimal-change", "test-first", "pinned-baseline-comparison", "human-no-worse-review"],
+    "skill_mappings": [
+      {"procedure": "minimal-change", "skill_ref": "ponytail:ponytail"},
+      {"procedure": "test-first", "skill_ref": "superpowers:test-driven-development"}
+    ]
+  },
+  "environment": {"dependencies": [], "required_env_names": []},
+  "validation": [{"name": "Declare the relevant project checks before use; do not execute imported commands blindly"}],
+  "provenance": {"source_work_id": "example-only", "provider": "unrecorded", "session_id": "example-only", "captured_at": "2026-09-12T00:00:00Z"},
+  "resume": {"handoff": "Read the task and evidence. Pin the reviewed component revisions, then verify the destination environment before starting a provider session.", "next_steps": ["Import or save the example component explicitly", "Pin its exact library revision in a candidate template"], "open_questions": ["Which provider/model and project checks should be used?"]},
+  "compatibility": ["Provider-neutral manifest; named skill mappings are optional and require destination review"],
+  "limitations": ["Example only; unreviewed and unverified", "No hidden state, credentials or automatic installation"]
+}

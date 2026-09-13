@@ -1,0 +1,87 @@
+{
+  "action": "save_artifact",
+  "created_at": "2026-01-01T00:00:00Z",
+  "id": "22222222-2222-4222-8222-222222222222",
+  "kind": "template",
+  "parent_revision": null,
+  "payload": {
+    "capabilities": [
+      "unrecorded"
+    ],
+    "compatibility": [
+      "unrecorded"
+    ],
+    "components": [
+      {
+        "kind": "runbook",
+        "rationale": "Pinned public review reminder.",
+        "ref": "library:11111111-1111-4111-8111-111111111111",
+        "sha256": "f08c0aa946f137478a7a73e3746969fe35abdf92afd593fe46b77a8375ca880f",
+        "version": "unrecorded"
+      }
+    ],
+    "environment": {
+      "dependencies": [],
+      "required_env_names": []
+    },
+    "harness": {
+      "config_ref": "unrecorded",
+      "id": "unrecorded",
+      "version": "unrecorded"
+    },
+    "instruction_layers": [
+      {
+        "rationale": "Relative reference; recipients must review its availability.",
+        "ref": "./policy.md",
+        "role": "system"
+      }
+    ],
+    "limitations": [
+      "No credential, running session, hidden model state, or project archive is included."
+    ],
+    "model": {
+      "effort": "unrecorded",
+      "name": "unrecorded"
+    },
+    "permissions_policy": {
+      "description": "External declarations are not executed.",
+      "ref": "https://example.invalid/policy"
+    },
+    "provenance": {
+      "captured_at": "unrecorded",
+      "provider": "unrecorded",
+      "session_id": "unrecorded",
+      "source_work_id": "unrecorded"
+    },
+    "purpose": "Transport an intentionally provider-neutral handoff recipe.",
+    "quality_policy": {
+      "procedures": [
+        "manual-review"
+      ],
+      "skill_mappings": []
+    },
+    "resume": {
+      "handoff": "DO NOT EXECUTE: review this handoff manually.",
+      "next_steps": [
+        "Review declared references before use."
+      ],
+      "open_questions": [
+        "Destination harness and model are unrecorded."
+      ]
+    },
+    "title": "Provider-neutral handoff template",
+    "tools": [],
+    "validation": [
+      {
+        "name": "Manual review only"
+      }
+    ],
+    "vendor_assets": [
+      {
+        "id": "11111111-1111-4111-8111-111111111111",
+        "revision": "f08c0aa946f137478a7a73e3746969fe35abdf92afd593fe46b77a8375ca880f"
+      }
+    ]
+  },
+  "schema_version": 1
+}
