@@ -23,8 +23,8 @@ html,body{width:100%;height:100%;overflow:hidden}body{display:flex;flex-directio
 <div class="inspector-pane"><aside class="detail empty" id="detail">Select a worker to inspect its current task.</aside><div class="action-menu" id="action-menu" hidden></div></div>
 </main>
 <script>
-const canvas=document.querySelector('#world'),ctx=canvas.getContext('2d'),picker=document.querySelector('#agent-picker'),detail=document.querySelector('#detail'),connection=document.querySelector('#connection');
-const camera={x:0,y:0,zoom:1},inspectorOpen=new Set();let state=null,workers=new Map(),areas=[],selected='',hits=[],dragging=false,moved=false,last={x:0,y:0},firstFit=true;
+const canvas=document.querySelector('#world'),screenCtx=canvas.getContext('2d'),staticCanvas=document.createElement('canvas'),staticCtx=staticCanvas.getContext('2d'),picker=document.querySelector('#agent-picker'),detail=document.querySelector('#detail'),connection=document.querySelector('#connection');
+const camera={x:0,y:0,zoom:1},inspectorOpen=new Set();let ctx=screenCtx,staticDirty=true,staticWidth=0,staticHeight=0,staticDpr=0,state=null,workers=new Map(),areas=[],selected='',hits=[],dragging=false,moved=false,last={x:0,y:0},firstFit=true;
 const colors={working:'#e4e7f5',tool:'#b5abfc',thinking:'#b5abfc',idle:'#75798c',waiting:'#9397ab',stale:'#595d6c',completed:'#595d6c',interrupted:'#d98a8a',failed:'#d98a8a',approval:'#9184d9',open:'#75798c'};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),active=s=>['working','tool','thinking'].includes(s),short=(s,n=46)=>String(s||'').length>n?String(s).slice(0,n-1)+'…':String(s||''),textKey=s=>String(s??'').trim().replace(/\s+/g,' ').toLowerCase(),projectName=cwd=>String(cwd||'Unknown project').split(/[\\/]/).filter(Boolean).at(-1)||'Unknown project',workerName=w=>w.parent||!w.cwd?(w.nickname||w.name||w.id):projectName(w.cwd);
 function hash(value){let h=2166136261;for(const c of String(value)){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return h>>>0}
@@ -46,16 +46,25 @@ function updateDetail(){
   for(const item of detail.querySelectorAll?.('details[data-semantic-key]')||[]){item.open=inspectorOpen.has(item.dataset.semanticKey);if(item.dataset.semanticKey===focusKey)item.querySelector('summary')?.focus({preventScroll:true})}
   detail.scrollTop=scroll;
 }
-function fitView(){camera.x=0;camera.y=0;const count=Math.max(1,areas.length),cols=Math.ceil(Math.sqrt(count)),rows=Math.ceil(count/cols);camera.zoom=Math.max(.45,Math.min(1.15,Math.min(canvas.clientWidth/(cols*360),canvas.clientHeight/(rows*240))));}
-function drawScene(ms){const width=canvas.clientWidth,height=canvas.clientHeight,dpr=Math.min(2,devicePixelRatio||1);if(canvas.width!==Math.round(width*dpr)||canvas.height!==Math.round(height*dpr)){canvas.width=Math.round(width*dpr);canvas.height=Math.round(height*dpr)}ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,width,height);const gradient=ctx.createRadialGradient(width*.5,height*.4,20,width*.5,height*.4,Math.max(width,height)*.7);gradient.addColorStop(0,'#1d1f30');gradient.addColorStop(1,'#0f101a');ctx.fillStyle=gradient;ctx.fillRect(0,0,width,height);drawGrid();activeAreas().slice().sort((a,b)=>(a.x+a.z)-(b.x+b.z)).forEach(drawArea);hits=[];const t=ms/1000,render=cityWorkers().map(w=>({w,pos:workerPosition(w,t)})).sort((a,b)=>(a.pos.x+a.pos.z)-(b.pos.x+b.pos.z));render.forEach(({w,pos})=>drawWorker(w,pos))}
+function drawScene(ms){
+  const width=canvas.clientWidth,height=canvas.clientHeight,dpr=Math.min(2,devicePixelRatio||1),pixelWidth=Math.round(width*dpr),pixelHeight=Math.round(height*dpr);
+  if(canvas.width!==pixelWidth||canvas.height!==pixelHeight){canvas.width=pixelWidth;canvas.height=pixelHeight}
+  if(staticCanvas.width!==pixelWidth||staticCanvas.height!==pixelHeight||staticWidth!==width||staticHeight!==height||staticDpr!==dpr){staticCanvas.width=pixelWidth;staticCanvas.height=pixelHeight;staticWidth=width;staticHeight=height;staticDpr=dpr;staticDirty=true}
+  if(staticDirty){
+    ctx=staticCtx;
+    try{ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,width,height);const gradient=ctx.createRadialGradient(width*.5,height*.4,20,width*.5,height*.4,Math.max(width,height)*.7);gradient.addColorStop(0,'#1d1f30');gradient.addColorStop(1,'#0f101a');ctx.fillStyle=gradient;ctx.fillRect(0,0,width,height);drawGrid();activeAreas().slice().sort((a,b)=>(a.x+a.z)-(b.x+b.z)).forEach(drawArea);staticDirty=false}finally{ctx=screenCtx}
+  }
+  ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,width,height);ctx.drawImage(staticCanvas,0,0,width,height);hits.length=0;
+  const t=ms/1000,render=cityWorkers();render.sort((a,b)=>(a.x+a.z)-(b.x+b.z));render.forEach(w=>drawWorker(w,workerPosition(w,t)));
+}
 function choose(id){if(!workers.has(id))return;if(selected!==id)detail.scrollTop=0;selected=id;picker.value=id;updateDetail();menuTarget=id;renderActions();renderRail()}
-picker.addEventListener('change',()=>choose(picker.value));document.querySelector('#fit').addEventListener('click',()=>{fitView();drawScene(performance.now())});canvas.addEventListener('pointerdown',e=>{dragging=true;moved=false;last={x:e.clientX,y:e.clientY};canvas.classList.add('dragging');canvas.setPointerCapture(e.pointerId)});canvas.addEventListener('pointermove',e=>{if(!dragging)return;const dx=e.clientX-last.x,dy=e.clientY-last.y;if(Math.abs(dx)+Math.abs(dy)>2)moved=true;camera.x+=dx;camera.y+=dy;last={x:e.clientX,y:e.clientY}});canvas.addEventListener('pointerup',e=>{dragging=false;canvas.classList.remove('dragging');if(!moved){const r=canvas.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top,hit=[...hits].reverse().find(h=>x>=h.x&&x<=h.x+h.w&&y>=h.y&&y<=h.y+h.h);if(hit)choose(hit.id)}});canvas.addEventListener('wheel',e=>{e.preventDefault();camera.zoom=Math.max(.35,Math.min(2,camera.zoom*Math.exp(-e.deltaY*.001)))},{passive:false});
+picker.addEventListener('change',()=>choose(picker.value));document.querySelector('#fit').addEventListener('click',()=>{fitView();drawScene(performance.now())});canvas.addEventListener('pointerdown',e=>{dragging=true;moved=false;last={x:e.clientX,y:e.clientY};canvas.classList.add('dragging');canvas.setPointerCapture(e.pointerId)});canvas.addEventListener('pointermove',e=>{if(!dragging)return;const dx=e.clientX-last.x,dy=e.clientY-last.y;if(Math.abs(dx)+Math.abs(dy)>2)moved=true;camera.x+=dx;camera.y+=dy;staticDirty=true;last={x:e.clientX,y:e.clientY}});canvas.addEventListener('pointerup',e=>{dragging=false;canvas.classList.remove('dragging');if(!moved){const r=canvas.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top,hit=[...hits].reverse().find(h=>x>=h.x&&x<=h.x+h.w&&y>=h.y&&y<=h.y+h.h);if(hit)choose(hit.id)}});canvas.addEventListener('wheel',e=>{e.preventDefault();camera.zoom=Math.max(.35,Math.min(2,camera.zoom*Math.exp(-e.deltaY*.001)));staticDirty=true},{passive:false});
 // The world is an isometric Canvas scene; positions illustrate recorded work, not physical telemetry.
 const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
 colors.approval='#9184d9';let paused=reducedMotion.matches,hovered='';
 const stations=[{x:-2.8,z:-2.6,name:'Research',color:'#456781'},{x:2.8,z:-2.6,name:'Workshop',color:'#4d786c'},{x:2.8,z:2.6,name:'Review',color:'#806a43'},{x:-2.8,z:2.6,name:'Standby',color:'#5e5a76'}];
 function fitView(){
-  const visible=activeAreas();if(!visible.length){camera.x=0;camera.y=0;camera.zoom=1;return}
+  staticDirty=true;const visible=activeAreas();if(!visible.length){camera.x=0;camera.y=0;camera.zoom=1;return}
   const points=[];
   for(const area of visible)for(const x of [-6.2,6.2])for(const z of [-6.2,6.2])for(const y of [0,4.7])points.push([area.x+x,area.z+z,y]);
   for(const w of cityWorkers())for(const y of [0,4.7])points.push([w.x,w.z,y],[w.targetX,w.targetZ,y]);
@@ -198,7 +207,7 @@ function sync(next){
     }
     for(const agent of area.agents.filter(agent=>terminalStatus(statusFor(agent)))){const old=workers.get(agent.id);nextWorkers.set(agent.id,{...agent,area,station:-1,seat:0,targetX:old?.targetX??area.x,targetZ:old?.targetZ??area.z,x:old?.x??area.x,z:old?.z??area.z,route:[],phase:(hash(agent.id)%628)/100})}
   }
-  workers=nextWorkers;state=next;
+  workers=nextWorkers;state=next;staticDirty=true;
   if(!workers.has(selected))selected=[...workers.values()].find(w=>statusFor(w)==='approval')?.id||[...workers.values()].find(w=>active(w.status))?.id||workers.keys().next().value||'';
   if(!workers.has(hovered))hovered='';
   for(const area of areas)area.color=rootAccent(area.root);
@@ -215,13 +224,13 @@ function workerPosition(w,t,dt=0){
     const step=Math.min(distance,length);w.x+=dx/length*step;w.z+=dz/length*step;distance-=step;w.moving=true;
     if(step===length){w.x=point.x;w.z=point.z;w.route.shift()}
   }
-  return {x:w.x,z:w.z,bob:w.moving?Math.abs(Math.sin(t*6+w.phase))*.04:0};
+  return w;
 };
 canvas.setAttribute('tabindex','0');
 canvas.addEventListener('keydown',e=>{
   const pan={ArrowLeft:[36,0],ArrowRight:[-36,0],ArrowUp:[0,36],ArrowDown:[0,-36]}[e.key];
-  if(pan){e.preventDefault();camera.x+=pan[0];camera.y+=pan[1];paint()}
-  else if(e.key==='+'||e.key==='='||e.key==='-'){e.preventDefault();camera.zoom=Math.max(.12,Math.min(3,camera.zoom*(e.key==='-'?.85:1.15)));paint()}
+  if(pan){e.preventDefault();camera.x+=pan[0];camera.y+=pan[1];staticDirty=true;paint()}
+  else if(e.key==='+'||e.key==='='||e.key==='-'){e.preventDefault();camera.zoom=Math.max(.12,Math.min(3,camera.zoom*(e.key==='-'?.85:1.15)));staticDirty=true;paint()}
   else if(e.key.toLowerCase()==='f'){e.preventDefault();fitView();paint()}
 });
 // Architecture is deliberately neutral; emissive cyan/emerald identifies the city network.
@@ -342,7 +351,7 @@ function renderRail(){
   else if(focusKey)[...(rail.querySelectorAll?.('[data-rail-key]')||[])].find(el=>el.dataset.railKey===focusKey)?.querySelector('summary')?.focus({preventScroll:true});
 }
 function renderActions(){const w=workers.get(menuTarget);actionMenu.hidden=!w;if(!w)return;actionMenu.innerHTML=(canSendInstruction(w)?'<button class="primary" type="button" data-action="send">Send instruction…</button>':'')+'<button type="button" data-action="inspect">Inspect work</button><button type="button" data-action="timeline">Open timeline</button><button type="button" data-action="focus">Focus camera</button><button type="button" data-action="clear">Stop following</button>'}
-function focusWorker(id){const w=workers.get(id);if(!w)return;const scale=29*camera.zoom;camera.x=-(w.x-w.z)*scale;camera.y=-(w.x+w.z)*scale*.48}
+function focusWorker(id){const w=workers.get(id);if(!w)return;const scale=29*camera.zoom,x=-(w.x-w.z)*scale,y=-(w.x+w.z)*scale*.48;if(camera.x!==x||camera.y!==y){camera.x=x;camera.y=y;staticDirty=true}}
 function openActions(id){if(!workers.has(id))return;menuTarget=id;choose(id);renderActions()}
 function setFollow(id=selected){if(!workers.has(id))return;following=id;menuTarget=id;focusWorker(id);renderActions()}
 function clearFocus(){following='';menuTarget='';timelineTarget='';renderActions();renderRail()}

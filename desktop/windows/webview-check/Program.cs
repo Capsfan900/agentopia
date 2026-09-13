@@ -749,7 +749,11 @@ static partial class Program
         Check(PerformanceFailures(sample, sample, sample with { processes = [identity] },
             sample with { processes = [identity with { start_time_utc = "2026-09-13T00:00:01Z" }] }).Length > 0,
             "reused process ID was accepted as a stable warm topology");
-        Console.Error.WriteLine("WEBVIEW_PERFORMANCE: 8 CPU/memory/growth/identity cases passed");
+        Check(VisibleMemoryPass(699_999_999, 449_999_999),
+            "values strictly below both active memory ceilings were rejected");
+        Check(!VisibleMemoryPass(700_000_000, 400_000_000), "active working-set ceiling was not strict");
+        Check(!VisibleMemoryPass(650_000_000, 450_000_000), "active private-commit ceiling was not strict");
+        Console.Error.WriteLine("WEBVIEW_PERFORMANCE: 11 CPU/memory/growth/identity cases passed");
     }
 
     static async Task<IdleSample> SampleIdleAsync(Dictionary<int, HeldProcess> held, HeldProcess host, SafeJob lifetime,

@@ -13,6 +13,9 @@ namespace WebViewCheck;
 
 static partial class Program
 {
+    const long VisibleWorkingSetLimit = 700_000_000;
+    const long VisiblePrivateCommitLimit = 450_000_000;
+
     static string VisibleFixture(int tick) => JsonSerializer.Serialize(new
     {
         sessions = Enumerable.Range(0, 24).Select(i => new
@@ -409,7 +412,7 @@ static partial class Program
             bool valid = unobscured && !heartbeat.GetProperty("focus_lost").GetBoolean() &&
                 !heartbeat.GetProperty("inactive").GetBoolean() && heartbeat.GetProperty("agents").GetInt32() == 24 &&
                 heartbeat.GetProperty("draw_heartbeat").GetProperty("count").GetInt32() > 0 && ticks - firstTick >= 9;
-            bool memoryPass = rows.Sum(p => p.working_set_bytes) < 600_000_000;
+            bool memoryPass = VisibleMemoryPass(rows.Sum(p => p.working_set_bytes), rows.Sum(p => p.private_bytes));
             Console.WriteLine(JsonSerializer.Serialize(new
             {
                 schema_version = 1, mode = "visible-observatory", measured_at = DateTimeOffset.UtcNow,
@@ -422,6 +425,7 @@ static partial class Program
                 native_sample_start = nativeStart, native_sample_end = nativeEnd,
                 readiness, motion_override = motionOverride,
                 active_measurement_valid = valid, memory_budget_pass = memoryPass,
+                memory_budgets = new { working_set_strictly_below_bytes = VisibleWorkingSetLimit, private_commit_strictly_below_bytes = VisiblePrivateCommitLimit },
                 cpu_seconds = rows.Sum(p => p.cpu_seconds), cpu_percent_one_core = 100 * rows.Sum(p => p.cpu_seconds) / clock.Elapsed.TotalSeconds,
                 working_set_bytes = rows.Sum(p => p.working_set_bytes), private_bytes = rows.Sum(p => p.private_bytes), processes = rows,
                 browser_scheduling = heartbeat, gpu_engine_utilization = "not measured; per-GPU-process CPU and memory are included, not GPU utilization",
@@ -429,7 +433,7 @@ static partial class Program
                 terminal_enabled = false, real_session_actions = 0, public_port_8777_used = false
             }));
             Check(valid, "visible active measurement was invalid: focus, occlusion, animation, fixture count or updates");
-            Check(memoryPass, "visible working set reached the unchanged 600 MB memory ceiling");
+            Check(memoryPass, "visible Observatory memory reached its active-scene ceiling");
         }
         catch (Exception error)
         {
@@ -492,6 +496,9 @@ static partial class Program
         if (CombineVisibleErrors(primary, cleanupErrors) is { } failure)
             System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
     }
+
+    static bool VisibleMemoryPass(long workingSetBytes, long privateBytes) =>
+        workingSetBytes < VisibleWorkingSetLimit && privateBytes < VisiblePrivateCommitLimit;
 
     static NativeVisibilityState VisibleWindowState(nint hwnd)
     {

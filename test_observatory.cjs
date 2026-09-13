@@ -105,6 +105,21 @@ regression('Extra paints cannot accelerate assignment travel',()=>{
   check('Math.hypot(runner.x-regularPosition.x,runner.z-regularPosition.z)<.00001','Equal elapsed time gives equal travel with or without pointer paints');
   check('Math.hypot(runner.x-savedRun.x,runner.z-savedRun.z)>0','Animation frames still advance travel');
 });
+regression('Animation frames reuse unchanged city geometry',()=>{
+  run(`sync(fixture);var gridDraws=0,savedDrawGrid=drawGrid;drawGrid=()=>{gridDraws++;savedDrawGrid()};drawScene(1000);drawScene(1034)`);
+  check('gridDraws===1','Unchanged animation frames must reuse the static city layer');
+  run('drawGrid=savedDrawGrid');
+});
+regression('CSS viewport changes invalidate static geometry even at the same backing size',()=>{
+  run(`sync(fixture);canvas.clientWidth=1100;canvas.clientHeight=800;devicePixelRatio=1;staticDirty=true;var viewportGridDraws=0,savedViewportGrid=drawGrid;drawGrid=()=>{viewportGridDraws++;savedViewportGrid()};drawScene(1000);canvas.clientWidth=550;canvas.clientHeight=400;devicePixelRatio=2;drawScene(1034)`);
+  check('viewportGridDraws===2','A changed CSS viewport must rebuild the projected city');
+  run('drawGrid=savedViewportGrid;canvas.clientWidth=1100;canvas.clientHeight=800;devicePixelRatio=1;staticDirty=true');
+});
+regression('Following a stationary worker preserves the static city cache',()=>{
+  run(`sync({sessions:[{id:'still-follow',cwd:'C:/Follow',status:'working'}]});setFollow('still-follow');var followGridDraws=0,savedFollowGrid=drawGrid;drawGrid=()=>{followGridDraws++;savedFollowGrid()};drawScene(1000);focusWorker('still-follow');drawScene(1034)`);
+  check('followGridDraws===1','A stationary followed worker must not invalidate unchanged city geometry');
+  run('drawGrid=savedFollowGrid;clearFocus()');
+});
 regression('Semantic trace drives the inspector and station without exposing provider extras',()=>{
   run('sync({sessions:[{id:"semantic",status:"working",current_action:"Generic fallback",prompt_context:{summary:"Integrate semantic trace",text:"Integrate semantic trace with safe details",source:"user_prompt"},working_on:{summary:"Run semantic checks",source:"agent_commentary",status:"working",task_path:["Integrate semantic trace","Run semantic checks"]},work_breakdown:[{id:"root",kind:"prompt",summary:"Integrate semantic trace"},{id:"review",parent_id:"root",kind:"step",summary:"Run semantic checks"}],trace:{version:1,root_id:"root",observations:[{id:"root",kind:"prompt",summary:"Integrate semantic trace",detail:"Integrate semantic trace with safe details"},{id:"review",parent_id:"root",kind:"step",summary:"Run semantic checks"},{id:"test",parent_id:"review",kind:"test",summary:"node test_observatory.cjs",exit_code:0}]},reasoning_summary:"SECRET_REASONING"}]});choose("semantic")');
   check('workstreamFor(workers.get("semantic"))==="Run semantic checks"','Recorded task path supplies a stable workstream when no assignment exists');
